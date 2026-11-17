@@ -1,22 +1,22 @@
 # Repository Guidelines
 
-This repository is currently a blank starting point. Add project-specific details here as the first implementation and tooling are introduced.
+This repository contains the first `bashllm` CLI slice. The remaining features are described in `SPEC.md` and tracked as local Markdown tickets.
 
 ## Project Structure & Module Organization
 
-There is no source tree, test suite, or asset directory yet. Keep new code in a clearly named top-level directory such as `src/`, place related tests in `tests/`, and store non-code assets in `assets/` if the project needs them. Group files by feature or responsibility, and document any different layout in this guide.
+The installable Python package lives in `src/bashllm/`; CLI-level integration tests live in `tests/`. `SPEC.md` records the product scope, `docs/agents/` holds agent workflow rules, and `.scratch/bashllm/issues/` holds local tickets. Generated build files and local runtime state are ignored by Git.
 
 ## Build, Test, and Development Commands
 
-No build system, package manager, or run command is configured. When adding one, provide a single documented command for each common task and record it here, for example `make build`, `make test`, and `make run`. Commit the configuration those commands depend on so another contributor can run them from a fresh checkout.
+Use `python3 -m venv .venv` and `.venv/bin/python -m pip install .` to install locally. Run `.venv/bin/bashllm run --repo . --cwd . -- 'pwd'` for a smoke check. Run `python3 -m unittest discover -s tests -v` for the integration suite.
 
 ## Coding Style & Naming Conventions
 
-No language or formatter has been chosen. Follow the conventions of the language and framework introduced by the project, use consistent indentation within each file, and choose descriptive names. Add formatter and linter configuration alongside the first substantial code change; document the commands here. Prefer names that reveal a file's purpose over generic names such as `utils` or `misc`.
+Use four spaces for Python indentation, `snake_case` for functions and variables, and `PascalCase` for classes. Keep runtime code compatible with Python 3.11 and its standard library. No formatter or linter is configured yet; keep changes consistent with adjacent code.
 
 ## Testing Guidelines
 
-No testing framework or coverage threshold exists yet. Add tests with new behavior and bug fixes, using the naming convention supported by the chosen framework. Keep tests close to the behavior they verify, either beside source files or under `tests/`. Once a test runner is configured, list its command in the section above.
+Tests use `unittest` and the `test_*.py` naming pattern. Test the installed CLI through subprocesses against temporary repositories. Add a behavioral test for each new command or bug fix. There is no coverage threshold.
 
 ## Commit & Pull Request Guidelines
 
