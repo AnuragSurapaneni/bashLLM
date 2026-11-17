@@ -4,9 +4,13 @@
 
 **Blocked by:** 10: Understand modern Fortran projects.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Fixed form and uppercase preprocessed Fortran source extensions are recognized, including their continuation rules.
-- [ ] Include relationships and common Fortran build files contribute evidence-backed findings and graph edges.
-- [ ] Edges affected by conditional compilation or unresolved preprocessing are marked uncertain.
-- [ ] CLI-level integration tests verify fixed form, includes, preprocessing uncertainty, and representative package or build files.
+- [x] Fixed form and uppercase preprocessed Fortran source extensions are recognized, including their continuation rules.
+- [x] Include relationships and common Fortran build files contribute evidence-backed findings and graph edges.
+- [x] Edges affected by conditional compilation or unresolved preprocessing are marked uncertain.
+- [x] CLI-level integration tests verify fixed form, includes, preprocessing uncertainty, and representative package or build files.
+
+## Resolution
+
+Extended Fortran inspection to fixed form, preprocessing uncertainty, includes, and fpm/CMake/Make relationships. Nine modern and legacy Fortran CLI tests pass.

@@ -4,10 +4,14 @@
 
 **Blocked by:** 04: Generate a basic preflight briefing.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The briefing embeds a bounded Mermaid graph of directory, file, and known source-unit structure and dependencies.
-- [ ] A Graphviz DOT artifact contains every relationship found within the configured scan limits without requiring Graphviz to be installed.
-- [ ] External, unresolved, and uncertain relationships are visibly distinguished from resolved internal ones.
-- [ ] Dependency cycles and unresolved references appear in concise findings; large graphs are summarized in the briefing.
-- [ ] CLI-level integration tests verify graph syntax, representative edges, omissions, and cycle findings.
+- [x] The briefing embeds a bounded Mermaid graph of directory, file, and known source-unit structure and dependencies.
+- [x] A Graphviz DOT artifact contains every relationship found within the configured scan limits without requiring Graphviz to be installed.
+- [x] External, unresolved, and uncertain relationships are visibly distinguished from resolved internal ones.
+- [x] Dependency cycles and unresolved references appear in concise findings; large graphs are summarized in the briefing.
+- [x] CLI-level integration tests verify graph syntax, representative edges, omissions, and cycle findings.
+
+## Resolution
+
+Implemented bounded Mermaid and DOT graph output, dependency status labels, and iterative cycle findings. Five graph integration tests pass, including a 1050-file cycle.
