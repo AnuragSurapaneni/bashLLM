@@ -4,9 +4,13 @@
 
 **Blocked by:** 05: Graph structure and dependencies.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Go module declarations, packages, and likely executable entry points are recognized with source evidence.
-- [ ] Declared module dependencies are distinguished from imports inferred from source code.
-- [ ] Internal package relationships resolve where possible; external and unresolved imports are labeled.
-- [ ] CLI-level integration tests verify briefing findings and graph edges in a small Go project.
+- [x] Go module declarations, packages, and likely executable entry points are recognized with source evidence.
+- [x] Declared module dependencies are distinguished from imports inferred from source code.
+- [x] Internal package relationships resolve where possible; external and unresolved imports are labeled.
+- [x] CLI-level integration tests verify briefing findings and graph edges in a small Go project.
+
+## Resolution
+
+Added Go module, package, entry point, declared dependency, and import analysis. Three focused installed-CLI tests pass.
