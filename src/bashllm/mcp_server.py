@@ -5,6 +5,7 @@ The host must require human approval for every bashllm_run tool call.
 """
 
 import argparse
+import copy
 import json
 import subprocess
 import sys
@@ -56,11 +57,12 @@ TOOLS = [
           {"limit": _integer("Maximum entries", 0, 50)}, []),
     _tool("run", "Run one bounded Bash command in the configured repository. "
           "Requires human approval on every invocation in the MCP host.",
-          {"command": _string("Single Bash command string to execute", 4096),
+          {"repo": _string("Fixed repository path shown for human approval", 4096),
+           "command": _string("Single Bash command string to execute", 4096),
            "cwd": _string("Working directory relative to the repository", 4096),
            "timeout_seconds": _integer("Execution timeout", 1, 60),
            "retry": {"type": "boolean", "description": "Explicitly repeat a prior exact command"}},
-          ["command"], read_only=False),
+          ["repo", "command"], read_only=False),
 ]
 TOOL_BY_NAME = {tool["name"]: tool for tool in TOOLS}
 TOOL_BY_NAME["bashllm_run"]["_meta"] = {"anthropic/requiresUserInteraction": True}
@@ -127,6 +129,8 @@ def _call(name: str, arguments: Any, repo: Path) -> dict[str, Any]:
     if tool is None:
         raise InvalidArguments(f"unknown tool: {name}")
     args = _validate(tool, arguments)
+    if name == "bashllm_run" and args["repo"] != str(repo):
+        raise InvalidArguments("repo must match the configured repository")
     command = _command(name.removeprefix("bashllm_"), args, repo)
     try:
         process = subprocess.run(command, capture_output=True, text=True, timeout=75,
@@ -177,7 +181,9 @@ def _dispatch(message: Any, repo: Path, initialized: bool) -> tuple[dict[str, An
     if method == "ping":
         return _response(request_id, result={}), initialized
     if method == "tools/list":
-        return _response(request_id, result={"tools": TOOLS}), initialized
+        tools = copy.deepcopy(TOOLS)
+        tools[-1]["inputSchema"]["properties"]["repo"]["const"] = str(repo)
+        return _response(request_id, result={"tools": tools}), initialized
     if method == "tools/call":
         params = message.get("params")
         if not isinstance(params, dict) or not isinstance(params.get("name"), str):

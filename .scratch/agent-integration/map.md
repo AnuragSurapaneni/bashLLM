@@ -16,8 +16,8 @@ Blocked by: None.
 | [04: Record every agent run attempt](issues/04-record-agent-run-attempts.md) | Resolved |
 | [05: Run contained commands on Linux](issues/05-run-contained-commands-on-linux.md) | Resolved |
 | [06: Run native commands with unsigned macOS profile](issues/06-run-contained-native-commands-on-macos.md) | Resolved |
-| [07: Demonstrate Codex CLI tool choice](issues/07-demonstrate-codex-cli-tool-choice.md) | None |
-| [08: Demonstrate Claude Code tool choice](issues/08-demonstrate-claude-code-tool-choice.md) | Claude Code sign-in and interactive approval |
+| [07: Demonstrate Codex CLI tool choice](issues/07-demonstrate-codex-cli-tool-choice.md) | Resolved |
+| [08: Demonstrate Claude Code tool choice](issues/08-demonstrate-claude-code-tool-choice.md) | Excluded from this milestone |
 | [09: Expose bashllm through a shared MCP adapter](issues/09-share-mcp-adapter.md) | Resolved |
 
-Tickets 01-06 and 09 are resolved. Tickets 07 and 08 remain open for interactive, human-approved harness demonstrations. The full milestone requires both demonstrations.
+Tickets 01-07 and 09 are resolved. Ticket 08 is excluded from this milestone at the user's direction; Codex is the validation harness.

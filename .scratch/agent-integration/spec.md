@@ -10,7 +10,7 @@ A coding agent can use `bashllm` today only if its harness happens to know the C
 
 ## Solution
 
-Give coding agents one versioned description of the CLI and JSON interface and a shared MCP adapter with typed tools, so Codex CLI and Claude Code can invoke `bashllm` without exposing a generic shell tool. Keep the agent responsible for choosing whether to use it and the harness responsible for obtaining human confirmation of the exact command and working directory before every execution, including retries. On Linux, `run` uses the verified Bubblewrap boundary. On macOS, use an unsigned `sandbox-exec` profile for a narrower, best-effort boundary that permits native commands, repository writes, and private temporary files while denying home-directory and standard temporary-directory reads, non-repository writes, and network operations. Other host reads and IPC remain possible. Both paths fail closed if their backend cannot start or pass its probe. macOS does not claim robust isolation against hostile code. Preserve repo inspection and reading when an execution backend is unavailable. Demonstrate voluntary tool selection in Codex CLI and Claude Code.
+Give coding agents one versioned description of the CLI and JSON interface and a shared MCP adapter with typed tools, so different harnesses can invoke `bashllm` without exposing a generic shell tool. Keep the agent responsible for choosing whether to use it and the harness responsible for obtaining human confirmation of the exact command and working directory before every execution, including retries. On Linux, `run` uses the verified Bubblewrap boundary. On macOS, use an unsigned `sandbox-exec` profile for a narrower, best-effort boundary that permits native commands, repository writes, and private temporary files while denying home-directory and standard temporary-directory reads, non-repository writes, and network operations. Other host reads and IPC remain possible. Both paths fail closed if their backend cannot start or pass its probe. macOS does not claim robust isolation against hostile code. Preserve repo inspection and reading when an execution backend is unavailable. Demonstrate voluntary tool selection in Codex CLI, the validation harness available for this milestone.
 
 ## User Stories
 
@@ -48,8 +48,7 @@ Give coding agents one versioned description of the CLI and JSON interface and a
 32. As a developer, I want backend prerequisites and explicit tool-path grants documented, so that I can set up contained execution deliberately.
 33. As a maintainer, I want security checks on both supported platforms, so that containment is verified against hostile scripts rather than assumed from configuration.
 34. As a maintainer, I want a Codex CLI demonstration where the agent chooses `bashllm` for repository understanding and an approved command, so that the integration is demonstrated in a real harness.
-35. As a maintainer, I want the same demonstration in Claude Code, so that the interface is shown to work across harnesses.
-36. As a maintainer, I want each demonstration to include an unrelated task where the agent skips `bashllm`, so that “as needed” means actual tool choice.
+35. As a maintainer, I want the demonstration to include an unrelated task where the agent skips `bashllm`, so that “as needed” means actual tool choice.
 
 ## Implementation Decisions
 
@@ -65,7 +64,7 @@ Give coding agents one versioned description of the CLI and JSON interface and a
 - Start commands with a minimal environment that omits inherited credentials and tokens. Disable network access with no override in this milestone.
 - Every agent-initiated run request, including a refusal or blocked repeat, must leave a local history record with an outcome. The agent-facing execution path must not offer a history opt-out. The existing human-facing no-history behavior is a compatibility issue to resolve without weakening the agent path.
 - Keep installation of the Python package possible without a sandbox backend. Execution prerequisites are installed and verified separately; unsupported or unconfigured systems receive a structured error.
-- The two demonstration harnesses are Codex CLI and Claude Code. Their demonstration configurations expose the shared MCP tools and no unrestricted generic shell execution; approved command execution flows through `bashllm run --agent`. Both harnesses use the same CLI backend contract.
+- Codex CLI is the live demonstration harness. Its configuration exposes the shared MCP tools and no unrestricted generic shell execution; approved command execution flows through `bashllm run --agent`. The adapter remains harness-neutral, and a Claude Code setup guide is provided without claiming a live Claude demonstration.
 - This feature extends the original product scope, whose first-release spec explicitly excluded sandboxing. Update the main product documentation and any conflicting claims when implementation lands.
 
 ## Testing Decisions
@@ -74,13 +73,14 @@ Give coding agents one versioned description of the CLI and JSON interface and a
 - Reuse the repository's CLI integration-test pattern for run limits, duplicate handling, retries, history, inspection, context staleness, and exploration. Extend those behavioral tests for the agent-facing description, structured errors, mandatory agent history, and backend availability.
 - Run native containment tests on macOS and Linux, rather than relying only on mocks. Probe reading and writing outside the repository, home-directory secrets, symlink escapes, child processes, inherited environment variables, and network access. Verify allowed repository writes, private temporary files, native tool execution, output limits, and timeouts. On macOS, these tests establish observed behavior of the deprecated profile on tested releases; they do not turn it into a supported adversarial security boundary.
 - Test backend failure and missing prerequisites as observable CLI behavior: `run` refuses execution and records the outcome while read and inspection commands continue to work. Do not describe a backend as supported until its adversarial tests pass on that platform.
-- Validate agent choice end to end in Codex CLI and Claude Code using the same published command description. In each harness, give the agent a repository-understanding task, a task needing a confirmed command, and an unrelated task. Observe voluntary use or non-use, the approval prompt, and the resulting history. Keep generic shell execution unavailable during these demonstrations.
+- Validate agent choice end to end in Codex CLI using the published command description. Give the agent a repository-understanding task, a task needing a confirmed command and separately confirmed retry, and an unrelated task. Observe voluntary use or non-use, the approval prompts, and the resulting history. Keep generic shell execution unavailable during the demonstration.
 - Test the shared MCP server as a subprocess through initialization, tool listing, tool calls, malformed inputs, and clean shutdown. Verify that read tools reach the installed CLI and that agent execution cannot disable history or grant arbitrary host paths.
 - Good tests assert behavior at the user boundary, including what files were touched and what the agent selected. They do not assert the exact internal sandbox command line, parser layout, or incidental wording in generated guidance.
 
 ## Out of Scope
 
 - Protocol adapters other than the shared MCP stdio server, harness-specific feature behavior, and an LLM inside `bashllm`.
+- A live Claude Code demonstration in this milestone; the user selected Codex for validation because Claude Code is not signed in here.
 - Network-enabled command execution or a network override.
 - Windows execution support.
 - Persistent shells, interactive programs, long-running servers, and daemon management.
@@ -93,6 +93,7 @@ Give coding agents one versioned description of the CLI and JSON interface and a
 
 - The user revised the macOS scope to avoid signing and approved `sandbox-exec` despite its deprecation. The macOS path must be labelled best-effort; if its required checks fail on a host, `run` remains unavailable there.
 - The user later approved a shared MCP adapter because the installed Codex CLI and Claude Code cannot expose a plain CLI command to the agent while removing their generic shell tool.
+- The user later narrowed live validation to Codex CLI only. The shared adapter and Claude setup notes remain available for future harness use.
 - Backend research starting points: [Bubblewrap](https://github.com/containers/bubblewrap), Apple's [App Sandbox](https://developer.apple.com/documentation/security/app-sandbox) and [sandboxed helper guidance](https://developer.apple.com/documentation/Xcode/embedding-a-helper-tool-in-a-sandboxed-app), and the [`sandbox-exec` deprecation notice](https://keith.github.io/xcode-man-pages/sandbox-exec.1.html).
 - The original first-release spec and README describe `run` as unsandboxed. That description is accurate for the current implementation and must change only when contained execution is shipped.
 - Local Markdown is the active issue tracker. This spec's `ready-for-agent` status marks it ready for implementation planning; it does not claim that either platform backend has already passed verification.

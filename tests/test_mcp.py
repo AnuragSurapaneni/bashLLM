@@ -80,10 +80,11 @@ class McpProcessTests(unittest.TestCase):
             "bashllm_find", "bashllm_search", "bashllm_read", "bashllm_inspect",
             "bashllm_context", "bashllm_history", "bashllm_run",
         ])
-        self.assertEqual(tools[-1]["inputSchema"]["required"], ["command"])
+        self.assertEqual(tools[-1]["inputSchema"]["required"], ["repo", "command"])
+        self.assertEqual(tools[-1]["inputSchema"]["properties"]["repo"]["const"], str(self.repo.resolve()))
         self.assertFalse(tools[-1]["annotations"]["readOnlyHint"])
         self.assertTrue(tools[-1]["_meta"]["anthropic/requiresUserInteraction"])
-        self.assertNotIn("repo", tools[-1]["inputSchema"]["properties"])
+        self.assertNotIn("tool_path", tools[-1]["inputSchema"]["properties"])
 
     def test_read_and_search_use_fixed_repository(self) -> None:
         self.initialize()
@@ -100,7 +101,9 @@ class McpProcessTests(unittest.TestCase):
 
     def test_run_rejects_escape_arguments_before_subprocess(self) -> None:
         self.initialize()
+        self.assertTrue(self.call(2, "bashllm_run", {"command": "pwd"})["isError"])
         for arguments in (
+            {"repo": None, "command": "pwd"},
             {"command": "pwd", "no_history": True},
             {"command": "pwd", "tool_path": "/tmp"},
             {"command": "pwd", "repo": "/tmp"},
@@ -110,13 +113,15 @@ class McpProcessTests(unittest.TestCase):
             {"command": "pwd\0echo bad"},
         ):
             with self.subTest(arguments=arguments):
-                result = self.call(2, "bashllm_run", arguments)
+                result = self.call(2, "bashllm_run", {"repo": str(self.repo.resolve()), **arguments})
                 self.assertTrue(result["isError"])
         self.assertFalse((self.repo / ".bashllm" / "history.sqlite3").exists())
 
     def test_run_is_agent_audited_even_if_backend_refuses(self) -> None:
         self.initialize()
-        result = self.call(2, "bashllm_run", {"command": "pwd", "timeout_seconds": 2})
+        result = self.call(2, "bashllm_run", {
+            "repo": str(self.repo.resolve()), "command": "pwd", "timeout_seconds": 2,
+        })
         self.assertIn("structuredContent", result, result)
         payload = result["structuredContent"]
         self.assertIn(payload["status"], {"executed", "backend_unavailable"})

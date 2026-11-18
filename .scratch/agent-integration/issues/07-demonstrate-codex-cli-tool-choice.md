@@ -4,11 +4,11 @@
 
 **Blocked by:** None.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Codex CLI receives the shared MCP tools with no unrestricted generic shell execution in the demonstration.
 - [x] For a repository-understanding task, the agent voluntarily selects appropriate inspection, context, or exploration commands and uses their JSON results.
-- [ ] For a command task, the agent shows the exact command, repository, and working directory, obtains human confirmation, then invokes contained `run`; a retry asks again.
+- [x] For a command task, the agent shows the exact command, repository, and working directory, obtains human confirmation, then invokes contained `run`; a retry asks again.
 - [x] An unrelated task prompts no `bashllm` call, and local history matches the demonstrated command attempts.
 - [x] The setup and observed results are repeatable and documented without changing the common CLI contract.
 
@@ -16,3 +16,4 @@
 
 - 2026-11-18: A noninteractive Codex demo used `bashllm_find` and `bashllm_read` for a repository question and no tool for arithmetic. A proposed run did not execute because no human approval was available. An interactive approved run and retry remain to be observed. See `docs/agents/codex-demo.md`.
 - 2026-11-18: An interactive Codex session reached a per-call approval dialog for `bashllm_run` with `command: pwd` and `cwd: .`; execution is awaiting a human decision.
+- 2026-11-18: The user separately approved the original call and an explicit `retry: true` call. Both ran successfully through the contained backend; history contains two executed `pwd` entries. See `docs/agents/codex-demo.md`.
