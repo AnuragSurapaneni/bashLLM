@@ -1,15 +1,51 @@
 # bashllm
 
-`bashllm` is a Python CLI for bounded Bash operations and static repository exploration. It records command attempts, helps agents avoid exact repeats, and generates a Markdown briefing before an LLM starts work.
+`bashllm` is a Python CLI for exploring a repository, preparing context for a coding agent, and running bounded Bash commands. It generates a static briefing, records command attempts, and blocks accidental exact repeats. A shared MCP server makes the same tools available to coding agents.
+
+## Quick start
+
+From the `bashllm` checkout, install the CLI and inspect a repository:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install .
+.venv/bin/bashllm inspect --repo /absolute/path/to/project
+.venv/bin/bashllm context --repo /absolute/path/to/project
+```
+
+`inspect` creates `/absolute/path/to/project/.bashllm/BRIEFING.md` and `GRAPH.dot`. Run `inspect` again when `context` reports that files changed. These read and inspection commands work even if command containment is unavailable.
+
+To run a command, first set up the platform backend described below, then use:
+
+```bash
+.venv/bin/bashllm run --repo /absolute/path/to/project --cwd . -- 'pwd'
+.venv/bin/bashllm history --repo /absolute/path/to/project
+```
+
+`--cwd .` means the project root. The first command prints the command output and execution status; `history` shows the recorded attempt. Use `--json` on any command for structured output.
 
 ## Install
 
 Requires Python 3.11 or later and Bash on macOS or Linux. Repository reading and inspection have no runtime dependencies. Contained execution requires a trusted system installation of Bubblewrap and usable user namespaces on Linux, or Apple's `sandbox-exec` on macOS. The macOS profile is a best-effort restriction through a deprecated utility; it is not a malicious-code isolation guarantee.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install .
-```
+Install from the checkout as shown in Quick start. Re-run `.venv/bin/python -m pip install .` after updating the checkout so the installed entry points include the latest commands.
+
+On Linux, install the distribution's system `bubblewrap` package and enable usable user namespaces. `bashllm` looks for a trusted `/usr/bin/bwrap` or `/bin/bwrap`; a copy installed elsewhere is not used. On macOS, `run` uses the system `/usr/bin/sandbox-exec`. The backend is checked when `run` starts, so installation alone does not establish that execution is available.
+
+## Choose a command
+
+| Command | Use it to |
+| --- | --- |
+| `inspect --repo REPO` | Generate a static briefing and dependency graph. |
+| `context --repo REPO` | Get a compact handoff and recent attempts after `inspect`. |
+| `find PATTERN --repo REPO` | Find files by glob. |
+| `search TEXT --repo REPO` | Search repository text literally. |
+| `read PATH --repo REPO` | Read a bounded repository file. |
+| `history --repo REPO` | Review command attempts and outcomes. |
+| `run --repo REPO --cwd DIR -- 'COMMAND'` | Execute one bounded Bash command. |
+| `agent-spec --json` | Get the versioned CLI contract for an agent harness. |
+
+Run `.venv/bin/bashllm COMMAND --help` for each command's options. Paths supplied to `read` are relative to the repository. The read commands skip generated directories and limit their output.
 
 ## Run a command
 
@@ -30,6 +66,8 @@ Command attempts are saved privately under the repository's ignored `.bashllm/` 
 .venv/bin/bashllm history --repo . --limit 10 --json
 ```
 
+`run --json` reports `status: "executed"` for a launched command, `status: "not_executed"` with exit code 3 for a blocked repeat, or `status: "backend_unavailable"` with exit code 69 when containment cannot start. Agent attempts, including refusals and repeats, appear in history. A human CLI call can use `--no-history`; an agent call cannot.
+
 ## Agent integration
 
 The versioned, harness-neutral command description is available from:
@@ -38,7 +76,16 @@ The versioned, harness-neutral command description is available from:
 .venv/bin/bashllm agent-spec --json
 ```
 
-Give this description to an agent harness as its tool contract. It explains when to use the read commands and `run`, how to parse JSON, and when to leave `bashllm` unused. For MCP hosts, start `.venv/bin/bashllm-mcp --repo /absolute/path/to/repository`. The server exposes fixed-repository `find`, `search`, `read`, `inspect`, `context`, `history`, and `run` tools and always invokes the audited agent path for `run`. The run tool requires the fixed repository path as a visible argument and rejects a mismatch. Configure the host to prompt a human for **every** `bashllm_run` call and disable its generic shell tool when you need all command execution to pass through this boundary. The MCP server cannot verify that a host displayed or received human approval. See the [Codex CLI guide](docs/agents/codex-demo.md) and [Claude Code guide](docs/agents/claude-demo.md) for isolated setups.
+Give this description to an agent harness as its tool contract. It explains when to use the read commands and `run`, how to parse JSON, and when to leave `bashllm` unused. For an MCP host, configure a stdio server with the installed executable and a fixed repository:
+
+```json
+{
+  "command": "/absolute/path/to/bashLLM/.venv/bin/bashllm-mcp",
+  "args": ["--repo", "/absolute/path/to/project"]
+}
+```
+
+The host starts that executable and exposes fixed-repository `find`, `search`, `read`, `inspect`, `context`, `history`, and `run` tools. The run tool requires the fixed repository path as a visible argument and rejects a mismatch. It always invokes the audited agent path for `run`. Configure the host to prompt a human for **every** `bashllm_run` call, including retries, and disable its generic shell tool when you need all command execution to pass through this boundary. The MCP server cannot verify that a host displayed or received human approval. See the [Codex CLI guide](docs/agents/codex-demo.md) and [Claude Code guide](docs/agents/claude-demo.md) for complete host configuration.
 
 ## Explore files
 
