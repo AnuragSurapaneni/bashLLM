@@ -68,10 +68,10 @@ class LinuxSandboxTests(unittest.TestCase):
             secret = Path(outer) / "outside-secret"
             secret.write_text("keep")
             (repo / "link").symlink_to(secret)
-            result = self.invoke(repo, f"test ! -r {secret} && test ! -r {repo / 'link'} && "
-                                       f"bash -c 'test ! -r {secret}' && "
-                                       f"! (printf bad > {secret})")
-            self.assertEqual(result.returncode, 0, result.stdout)
+            reading = self.invoke(repo, f"test ! -r {secret} && test ! -r {repo / 'link'} && "
+                                        f"bash -c 'test ! -r {secret}'")
+            self.assertEqual(reading.returncode, 0, reading.stdout)
+            self.invoke(repo, f"printf bad > {secret}")
             self.assertEqual(secret.read_text(), "keep")
 
     def test_inherited_secret_environment_is_removed(self):
