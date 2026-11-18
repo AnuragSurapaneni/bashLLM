@@ -43,11 +43,15 @@ def connect(repo: Path) -> sqlite3.Connection:
 
 
 def previous(connection: sqlite3.Connection, cwd: str, command: str) -> dict | None:
-    row = connection.execute(
-        "SELECT result FROM attempts WHERE cwd = ? AND command = ? ORDER BY id DESC LIMIT 1",
+    rows = connection.execute(
+        "SELECT result FROM attempts WHERE cwd = ? AND command = ? ORDER BY id DESC",
         (cwd, command),
-    ).fetchone()
-    return json.loads(row["result"]) if row else None
+    )
+    for row in rows:
+        result = json.loads(row["result"])
+        if result.get("status", "executed") == "executed":
+            return result
+    return None
 
 
 def record(connection: sqlite3.Connection, cwd: str, command: str, result: dict) -> None:

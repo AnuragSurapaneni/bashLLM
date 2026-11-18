@@ -13,6 +13,8 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 
 
+@unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
+                     "command execution requires a Linux Bubblewrap backend")
 class RunCommandTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

@@ -4,7 +4,7 @@
 
 ## Install
 
-Requires Python 3.11 or later and Bash on macOS or Linux. The package has no runtime dependencies.
+Requires Python 3.11 or later and Bash on macOS or Linux. Repository reading and inspection have no runtime dependencies. Contained execution currently requires a trusted system installation of Bubblewrap and usable user namespaces on Linux. Native macOS execution remains unavailable until a signed containment helper is verified.
 
 ```bash
 python3 -m venv .venv
@@ -18,15 +18,27 @@ python3 -m venv .venv
 .venv/bin/bashllm run --repo . --cwd . --json -- 'printf "hello\\n"'
 ```
 
-Pass one Bash command string after `--`. `--repo` names the repository root, and `--cwd` names a directory inside it; a relative `--cwd` is resolved from the repository root. Each call starts a fresh Bash process with the caller's permissions. This command is not a sandbox.
+Pass one Bash command string after `--`. `--repo` names the repository root, and `--cwd` names a directory inside it; a relative `--cwd` is resolved from the repository root. Each call starts a fresh Bash process only after the platform containment backend passes a capability check. If the backend is missing or fails to start, `run` refuses the command with exit code 69 and a `backend_unavailable` JSON status. It never falls back to unrestricted execution. The other commands continue to work.
+
+On Linux, the backend exposes the repository for persistent reads and writes, a disposable private temporary directory, and the system runtime needed to launch Bash. It starts with a minimal environment and no network namespace. The entire repository is visible to the command, including ignored files. External tools installed under your home directory require an explicit read-only path grant. Human CLI users can pass `--tool-path PATH` on a run. An agent's grants must be configured in an owner-controlled `~/.config/bashllm/tool-grants.json` file as a JSON object mapping an absolute repository path to a list of absolute tool file or directory paths. Agent calls cannot pass `--tool-path` directly. Native Linux adversarial tests are included in the suite and must pass on a Linux host before this backend is treated as verified.
 
 The default timeout is 60 seconds and each output stream retains at most 32 KiB. Use `--timeout SECONDS` and `--max-output BYTES` to adjust them. The CLI returns the command's exit code, or 124 on timeout. JSON output includes the exit code, duration, timeout status, and per-stream truncation flags.
 
-Command attempts are saved privately under the repository's ignored `.bashllm/` directory. An exact repeat of the same command and working directory is blocked with the earlier result and a `not_executed` status. Use `--retry` to execute it again or `--no-history` to skip history lookup and storage. Inspect recent attempts with:
+Command attempts are saved privately under the repository's ignored `.bashllm/` directory. An exact repeat of the same executed command and working directory is blocked with the earlier result and a `not_executed` status. Use `--retry` to execute it again or `--no-history` to skip history lookup and storage for a human-invoked run. Agent runs use `--agent`, which records executions and refusals and rejects `--no-history`. The calling agent must request human approval for the exact command, repository, and working directory before each execution, including retries. Inspect recent attempts with:
 
 ```bash
 .venv/bin/bashllm history --repo . --limit 10 --json
 ```
+
+## Agent integration
+
+The versioned, harness-neutral command description is available from:
+
+```bash
+.venv/bin/bashllm agent-spec --json
+```
+
+Give this description to an agent harness as its tool contract. It explains when to use the read commands and `run`, how to parse JSON, and when to leave `bashllm` unused. An agent must call `run` with `--agent`; a harness claiming command containment must not expose an unrestricted shell tool alongside it. `bashllm` enforces its own execution boundary but cannot verify that a harness obtained human approval.
 
 ## Explore files
 

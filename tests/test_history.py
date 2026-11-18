@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import venv
@@ -43,6 +44,8 @@ class HistoryCommandTests(unittest.TestCase):
             env={**os.environ, "LC_ALL": "C"},
         )
 
+    @unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
+                         "command execution requires a Linux Bubblewrap backend")
     def test_exact_repeat_is_blocked_with_previous_result(self):
         with tempfile.TemporaryDirectory() as root:
             first = self.invoke("run", "--repo", root, "--cwd", root, "--json", "--", "echo once; exit 7")
@@ -54,6 +57,8 @@ class HistoryCommandTests(unittest.TestCase):
             self.assertEqual(payload["previous_exit_code"], 7)
             self.assertIn("once", payload["previous_stdout"])
 
+    @unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
+                         "command execution requires a Linux Bubblewrap backend")
     def test_retry_executes_again_and_different_directory_is_independent(self):
         with tempfile.TemporaryDirectory() as root:
             other = Path(root) / "other"
@@ -69,6 +74,8 @@ class HistoryCommandTests(unittest.TestCase):
             self.assertEqual((first.returncode, retry.returncode, elsewhere.returncode), (0, 0, 0))
             self.assertEqual(marker.read_text(), "xxx")
 
+    @unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
+                         "command execution requires a Linux Bubblewrap backend")
     def test_command_text_is_matched_exactly_and_repositories_are_independent(self):
         with tempfile.TemporaryDirectory() as left, tempfile.TemporaryDirectory() as right:
             for repo, command in ((left, "echo hello"), (left, "echo  hello"), (right, "echo hello")):
@@ -78,6 +85,8 @@ class HistoryCommandTests(unittest.TestCase):
             self.assertEqual(blocked.returncode, 3)
             self.assertEqual(json.loads(blocked.stdout)["status"], "not_executed")
 
+    @unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
+                         "command execution requires a Linux Bubblewrap backend")
     def test_no_history_does_not_record_or_block(self):
         with tempfile.TemporaryDirectory() as root:
             marker = Path(root) / "marker"
@@ -89,6 +98,8 @@ class HistoryCommandTests(unittest.TestCase):
             self.assertEqual(marker.read_text(), "xxx")
             self.assertEqual(len(json.loads(self.invoke("history", "--repo", root, "--json").stdout)), 1)
 
+    @unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
+                         "command execution requires a Linux Bubblewrap backend")
     def test_no_history_can_run_a_previously_recorded_command(self):
         with tempfile.TemporaryDirectory() as root:
             marker = Path(root) / "marker"
@@ -98,6 +109,8 @@ class HistoryCommandTests(unittest.TestCase):
             self.assertEqual(marker.read_text(), "xx")
             self.assertEqual(len(json.loads(self.invoke("history", "--repo", root, "--json").stdout)), 1)
 
+    @unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
+                         "command execution requires a Linux Bubblewrap backend")
     def test_recent_history_lists_attempts_and_private_storage(self):
         with tempfile.TemporaryDirectory() as root:
             for command in ("echo first", "echo second"):

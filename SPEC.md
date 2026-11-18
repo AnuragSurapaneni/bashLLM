@@ -1,5 +1,7 @@
 # bashllm: Repository Operations and Preflight Context
 
+This document records the original release scope. The later agent-integration specification extends the product with fail-closed contained execution and an agent-facing CLI contract; its implementation is tracked in the local issue tracker.
+
 ## Problem Statement
 
 Coding agents repeat shell commands, spend tokens rediscovering repository structure, and begin work without a reliable map of code and dependencies. A new agent session needs a concise handoff grounded in the current checkout. This is especially difficult in unfamiliar or mixed-language repositories, including Fortran projects.

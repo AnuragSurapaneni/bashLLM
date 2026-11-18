@@ -42,7 +42,9 @@ class ContextCommandTests(unittest.TestCase):
             repo = Path(root)
             (repo / "main.py").write_text("print('hello')\n")
             self.assertEqual(self.invoke("inspect", "--repo", root).returncode, 0)
-            self.assertEqual(self.invoke("run", "--repo", root, "--cwd", root, "--", "echo tried").returncode, 0)
+            attempted = self.invoke("run", "--agent", "--repo", root, "--cwd", root,
+                                    "--", "echo tried")
+            self.assertIn(attempted.returncode, (0, 69), attempted.stderr)
             small = self.invoke("context", "--repo", root, "--max-tokens", "80", "--json")
             large = self.invoke("context", "--repo", root, "--max-tokens", "4000", "--json")
             self.assertEqual(small.returncode, 0, small.stderr)

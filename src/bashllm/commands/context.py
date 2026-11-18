@@ -30,7 +30,7 @@ def _recent_commands(repo: Path) -> str:
     if not entries:
         return "None recorded."
     return "\n".join(
-        f"- {entry['command'][:160]} (exit {entry.get('exit_code', '?')})"
+        f"- {entry['command'][:160]} ({entry.get('status', 'executed')}, exit {entry.get('exit_code', '?')})"
         for entry in entries
     )
 
