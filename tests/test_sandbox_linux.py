@@ -113,3 +113,21 @@ class LinuxSandboxTests(unittest.TestCase):
             port = server.getsockname()[1]
             result = self.invoke(root, f"bash -c 'echo connected > /dev/tcp/127.0.0.1/{port}'")
             self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_agent_attempts_include_execution_repeat_and_retry(self):
+        with tempfile.TemporaryDirectory() as root:
+            marker = Path(root) / "marker"
+            command = f"printf x >> {marker}"
+            first = self.invoke(root, command)
+            repeated = self.invoke(root, command)
+            retried = self.invoke(root, command, "--retry")
+            self.assertEqual((first.returncode, repeated.returncode, retried.returncode),
+                             (0, 3, 0))
+            self.assertEqual(json.loads(repeated.stdout)["status"], "not_executed")
+            self.assertEqual(marker.read_text(), "xx")
+            history = subprocess.run([self.cli, "history", "--repo", root, "--json"],
+                                     capture_output=True, text=True)
+            self.assertEqual(history.returncode, 0, history.stderr)
+            entries = json.loads(history.stdout)
+            self.assertEqual([entry["status"] for entry in entries],
+                             ["executed", "not_executed", "executed"])
