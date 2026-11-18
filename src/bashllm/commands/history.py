@@ -32,7 +32,8 @@ def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     else:
         for entry in entries:
             print(
-                f"{entry['created_at']} cwd={entry['cwd']} exit_code={entry['exit_code']} "
+                f"{entry['created_at']} cwd={entry['cwd']} status={entry.get('status', 'executed')} "
+                f"exit_code={entry['exit_code']} "
                 f"command={entry['command']!r}"
             )
     return 0

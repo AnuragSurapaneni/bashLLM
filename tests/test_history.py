@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 import venv
@@ -30,6 +31,21 @@ class HistoryCommandTests(unittest.TestCase):
             text=True,
         )
         cls.cli = environment / "bin" / "bashllm"
+        with tempfile.TemporaryDirectory() as root:
+            probe = subprocess.run(
+                [cls.cli, "run", "--repo", root, "--cwd", root, "--json", "--", "true"],
+                capture_output=True, text=True,
+            )
+        if probe.returncode == 69:
+            cls.install_dir.cleanup()
+            required = (sys.platform == "linux" and os.environ.get("BASHLLM_REQUIRE_LINUX_SANDBOX") == "1") or (
+                sys.platform == "darwin" and os.environ.get("BASHLLM_REQUIRE_MACOS_SANDBOX") == "1")
+            if required:
+                raise AssertionError(f"contained run is required: {probe.stdout}")
+            raise unittest.SkipTest(f"contained run unavailable: {probe.stdout}")
+        if probe.returncode != 0:
+            cls.install_dir.cleanup()
+            raise AssertionError(f"contained run probe failed: {probe.stdout} {probe.stderr}")
 
     @classmethod
     def tearDownClass(cls):

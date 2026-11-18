@@ -1,0 +1,22 @@
+name: Linux containment
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    env:
+      BASHLLM_REQUIRE_LINUX_SANDBOX: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install Bubblewrap
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+      - name: Run installed-CLI suite
+        run: python3 -m unittest discover -s tests -v

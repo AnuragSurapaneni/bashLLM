@@ -1,0 +1,24 @@
+name: macOS containment
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-15-intel
+    env:
+      BASHLLM_REQUIRE_MACOS_SANDBOX: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install package build dependency
+        run: python3 -m pip install 'setuptools>=61' wheel
+      - name: Verify isolated package install
+        run: |
+          python3 -m venv --system-site-packages "$RUNNER_TEMP/bashllm-preflight"
+          "$RUNNER_TEMP/bashllm-preflight/bin/python" -m pip install --no-build-isolation --no-deps .
+      - name: Run installed-CLI suite
+        run: python3 -m unittest discover -s tests -v
