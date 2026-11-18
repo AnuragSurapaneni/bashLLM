@@ -103,7 +103,7 @@ class RunCommandTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     self.cli, "run", "--repo", root, "--cwd", root,
-                    "--json", "--", "python3 -c \"print('x'*32769, end='')\"",
+                    "--json", "--", "printf '%032769d' 0",
                 ],
                 capture_output=True,
                 text=True,
