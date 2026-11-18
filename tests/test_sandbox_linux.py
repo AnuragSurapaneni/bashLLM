@@ -114,6 +114,19 @@ class LinuxSandboxTests(unittest.TestCase):
             result = self.invoke(root, f"bash -c 'echo connected > /dev/tcp/127.0.0.1/{port}'")
             self.assertNotEqual(result.returncode, 0, result.stdout)
 
+    def test_missing_granted_tool_refuses_without_running_command(self):
+        with tempfile.TemporaryDirectory() as root:
+            marker = Path(root) / "marker"
+            unavailable = Path(root) / "no-such-tool"
+            result = subprocess.run(
+                [self.cli, "run", "--repo", root, "--cwd", root, "--json",
+                 "--tool-path", str(unavailable), "--", f"touch {marker}"],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 69)
+            self.assertEqual(json.loads(result.stdout)["status"], "backend_unavailable")
+            self.assertFalse(marker.exists())
+
     def test_agent_attempts_include_execution_repeat_and_retry(self):
         with tempfile.TemporaryDirectory() as root:
             marker = Path(root) / "marker"
