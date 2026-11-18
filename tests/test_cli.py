@@ -13,8 +13,6 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 
 
-@unittest.skipUnless(sys.platform == "linux" and Path("/usr/bin/bwrap").is_file(),
-                     "command execution requires a Linux Bubblewrap backend")
 class RunCommandTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -29,6 +27,21 @@ class RunCommandTests(unittest.TestCase):
             text=True,
         )
         cls.cli = environment / "bin" / "bashllm"
+        with tempfile.TemporaryDirectory() as root:
+            probe = subprocess.run(
+                [cls.cli, "run", "--repo", root, "--cwd", root, "--json", "--", "true"],
+                capture_output=True, text=True,
+            )
+        if probe.returncode == 69:
+            cls.install_dir.cleanup()
+            required = (sys.platform == "linux" and os.environ.get("BASHLLM_REQUIRE_LINUX_SANDBOX") == "1") or (
+                sys.platform == "darwin" and os.environ.get("BASHLLM_REQUIRE_MACOS_SANDBOX") == "1")
+            if required:
+                raise AssertionError(f"contained run is required: {probe.stdout}")
+            raise unittest.SkipTest(f"contained run unavailable: {probe.stdout}")
+        if probe.returncode != 0:
+            cls.install_dir.cleanup()
+            raise AssertionError(f"contained run probe failed: {probe.stdout} {probe.stderr}")
 
     @classmethod
     def tearDownClass(cls):
@@ -68,7 +81,7 @@ class RunCommandTests(unittest.TestCase):
 
     def test_caps_each_output_stream(self):
         with tempfile.TemporaryDirectory() as root:
-            command = "python3 -c \"import sys; sys.stdout.write('x'*200); sys.stderr.write('y'*200)\""
+            command = "printf '%0200d' 0; printf '%0200d' 0 >&2"
             result = subprocess.run(
                 [
                     self.cli, "run", "--repo", root, "--cwd", root,
@@ -80,8 +93,8 @@ class RunCommandTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["stdout"], "x" * 32)
-            self.assertEqual(payload["stderr"], "y" * 32)
+            self.assertEqual(payload["stdout"], "0" * 32)
+            self.assertEqual(payload["stderr"], "0" * 32)
             self.assertTrue(payload["stdout_truncated"])
             self.assertTrue(payload["stderr_truncated"])
 

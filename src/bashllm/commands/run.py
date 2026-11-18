@@ -168,7 +168,7 @@ def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
     try:
         tool_paths = agent_tool_grants(repo) if args.agent else args.tool_path
-        argv, environment = launch_command(repo, cwd, command, tool_paths)
+        argv, environment, cleanup = launch_command(repo, cwd, command, tool_paths)
     except BackendUnavailable as error:
         return _refuse(args, connection, repo, cwd, command, str(error))
 
@@ -177,6 +177,8 @@ def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     except OSError as error:
         return _refuse(args, connection, repo, cwd, command,
                        f"containment launcher failed to start: {error}")
+    finally:
+        cleanup()
 
     payload = {
         "repo": str(repo),

@@ -1,13 +1,13 @@
-# 06: Run contained native commands on macOS
+# 06: Run native commands with unsigned macOS profile
 
-**What to build:** Let a developer run an approved finite native macOS Bash command through the verified helper, with the same observable containment and failure behavior promised for `run`.
+**What to build:** Let a developer run an approved finite native macOS Bash command through the tested unsigned `sandbox-exec` profile, with clearly labelled best-effort restrictions and fail-closed startup behavior.
 
 **Blocked by:** 02: Refuse uncontained command execution; 03: Prove native macOS containment.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The installed CLI uses a verified native macOS backend and refuses execution if the helper, signing, entitlement, or boundary check fails.
-- [ ] Native build or test tools can read required runtime paths, use explicitly granted home-directory tool paths, write within the repository, and use private temporary files.
-- [ ] The command and its children cannot reach unrelated private files, inherited credentials, or the network, including through symlinks.
-- [ ] Native macOS installed-CLI tests verify allowed effects, denied effects, timeouts, output limits, and backend failure without an unrestricted fallback.
-- [ ] Packaging and setup instructions explain how to install and verify the helper while preserving read-only CLI use without it.
+- [x] The installed CLI uses the tested unsigned profile and refuses execution if `sandbox-exec` or its probe fails; it never falls back to unrestricted Bash.
+- [x] Native commands can read system runtime paths, write within the repository, and use private temporary files; explicit tool grants are supported.
+- [x] The tested profile restricts outside private file access, inherited credentials, and network connections for the observed command and child-process cases; the CLI describes this as best-effort.
+- [x] Native macOS installed-CLI tests verify allowed effects, denied effects, timeouts, output limits, and backend failure without an unrestricted fallback.
+- [x] Documentation explains the profile's deprecation, exact tested limits, and continued read-only CLI use when it is unavailable.

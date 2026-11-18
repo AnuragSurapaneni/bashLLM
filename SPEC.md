@@ -43,10 +43,11 @@ Provide an installable `bashllm` CLI for macOS and Linux. It runs bounded Bash c
 ## Implementation Decisions
 
 - Use Python 3.11 or later and the standard library for the first release; expose an installable `bashllm` command.
-- Require an explicit repository root for every operation and an explicit working directory for Bash execution. Each run starts a fresh Bash process. The tool uses the caller's permissions and provides no sandbox.
+- Require an explicit repository root for every operation and an explicit working directory for Bash execution. Each run starts a fresh Bash process inside a platform containment backend. Linux uses Bubblewrap; macOS uses a deprecated, best-effort `sandbox-exec` profile. Refuse execution if the backend cannot start.
 - Default to a 60-second command timeout and capture at most 32 KiB from each output stream; allow callers to adjust both limits.
 - Identify duplicates by exact command text and working directory within the repository. Block repeats unless the caller explicitly retries; return the prior result with a distinct not-executed status.
-- Store local command history in SQLite with user-only file permissions. Support recent-history queries and a no-history execution option.
+- Store local command history in SQLite with user-only file permissions. Support recent-history queries and a no-history execution option for human CLI calls. Agent calls always record attempts.
+- Publish a versioned agent contract and a shared MCP stdio adapter with fixed-repository tools. Host applications must prompt a human for each execution tool call and withhold any generic shell tool when routing command execution through `bashllm`.
 - Provide bounded `find`, `search`, and `read` operations with human-readable and JSON forms.
 - Make inspection deterministic and static. Recognize common manifests and entry points for Python, JavaScript/TypeScript, Rust, Go, and Fortran, and provide a generic map for other languages.
 - For Fortran, recognize legacy and modern source extensions, uppercase preprocessed variants, fixed and free form, continuation lines, `USE` and include relationships, programs, modules, and submodules. Inspect common package and build files.
@@ -64,7 +65,7 @@ Provide an installable `bashllm` CLI for macOS and Linux. It runs bounded Bash c
 
 ## Out of Scope
 
-- Windows support, a persistent interactive shell, command sandboxing, automatic retry after repository changes, and LLM-powered analysis.
+- Windows support, a persistent interactive shell, network-enabled execution, robust malicious-code containment on macOS, automatic retry after repository changes, and LLM-powered analysis.
 - A complete compiler-grade parser or procedure-level call graph for any language.
 - Rendering the DOT graph or installing Graphviz as a required dependency.
 

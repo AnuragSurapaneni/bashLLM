@@ -4,7 +4,7 @@
 
 ## Install
 
-Requires Python 3.11 or later and Bash on macOS or Linux. Repository reading and inspection have no runtime dependencies. Contained execution currently requires a trusted system installation of Bubblewrap and usable user namespaces on Linux. Native macOS execution remains unavailable until a signed containment helper is verified.
+Requires Python 3.11 or later and Bash on macOS or Linux. Repository reading and inspection have no runtime dependencies. Contained execution requires a trusted system installation of Bubblewrap and usable user namespaces on Linux, or Apple's `sandbox-exec` on macOS. The macOS profile is a best-effort restriction through a deprecated utility; it is not a malicious-code isolation guarantee.
 
 ```bash
 python3 -m venv .venv
@@ -20,7 +20,7 @@ python3 -m venv .venv
 
 Pass one Bash command string after `--`. `--repo` names the repository root, and `--cwd` names a directory inside it; a relative `--cwd` is resolved from the repository root. Each call starts a fresh Bash process only after the platform containment backend passes a capability check. If the backend is missing or fails to start, `run` refuses the command with exit code 69 and a `backend_unavailable` JSON status. It never falls back to unrestricted execution. The other commands continue to work.
 
-On Linux, the backend exposes the repository for persistent reads and writes, a disposable private temporary directory, and the system runtime needed to launch Bash. It starts with a minimal environment and no network namespace. The entire repository is visible to the command, including ignored files. External tools installed under your home directory require an explicit read-only path grant. Human CLI users can pass `--tool-path PATH` on a run. An agent's grants must be configured in an owner-controlled `~/.config/bashllm/tool-grants.json` file as a JSON object mapping an absolute repository path to a list of absolute tool file or directory paths. Agent calls cannot pass `--tool-path` directly. Native Linux adversarial tests are included in the suite and must pass on a Linux host before this backend is treated as verified.
+On Linux, the backend exposes the repository for persistent reads and writes, a disposable private temporary directory, and the system runtime needed to launch Bash. It starts with a minimal environment and no network namespace. On macOS, `sandbox-exec` denies reads from the user's home and standard temporary locations except the repository and private run directory, denies writes outside those locations, and denies network operations. The deprecated profile permits other host reads and IPC, so it must not be used as a strong boundary against hostile commands. The entire repository is visible to the command, including ignored files. External tools installed under your home directory require an explicit read-only path grant. Human CLI users can pass `--tool-path PATH` on a run. An agent's grants must be configured in an owner-controlled `~/.config/bashllm/tool-grants.json` file as a JSON object mapping an absolute repository path to a list of absolute tool file or directory paths. Agent calls cannot pass `--tool-path` directly. Native containment tests run on each supported platform.
 
 The default timeout is 60 seconds and each output stream retains at most 32 KiB. Use `--timeout SECONDS` and `--max-output BYTES` to adjust them. The CLI returns the command's exit code, or 124 on timeout. JSON output includes the exit code, duration, timeout status, and per-stream truncation flags.
 
@@ -38,7 +38,7 @@ The versioned, harness-neutral command description is available from:
 .venv/bin/bashllm agent-spec --json
 ```
 
-Give this description to an agent harness as its tool contract. It explains when to use the read commands and `run`, how to parse JSON, and when to leave `bashllm` unused. An agent must call `run` with `--agent`; a harness claiming command containment must not expose an unrestricted shell tool alongside it. `bashllm` enforces its own execution boundary but cannot verify that a harness obtained human approval.
+Give this description to an agent harness as its tool contract. It explains when to use the read commands and `run`, how to parse JSON, and when to leave `bashllm` unused. For MCP hosts, start `.venv/bin/bashllm-mcp --repo /absolute/path/to/repository`. The server exposes fixed-repository `find`, `search`, `read`, `inspect`, `context`, `history`, and `run` tools and always invokes the audited agent path for `run`. Configure the host to prompt a human for **every** `bashllm_run` call and disable its generic shell tool when you need all command execution to pass through this boundary. The MCP server cannot verify that a host displayed or received human approval. See the [Codex CLI guide](docs/agents/codex-demo.md) and [Claude Code guide](docs/agents/claude-demo.md) for isolated setups.
 
 ## Explore files
 

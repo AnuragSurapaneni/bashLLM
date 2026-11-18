@@ -5,6 +5,8 @@ import os
 import stat
 import subprocess
 import sys
+import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 
@@ -111,19 +113,86 @@ def _linux_argv(repo: Path, cwd: Path, command: str, tool_paths: list[Path]) -> 
     return arguments, environment
 
 
-def launch_command(repo: Path, cwd: Path, command: str, tool_paths: list[Path]) -> tuple[list[str], dict[str, str]]:
-    """Return a contained launcher, after verifying it can start on this host."""
-    if sys.platform != "linux":
-        if sys.platform == "darwin":
-            raise BackendUnavailable("native macOS containment helper is not installed or verified")
-        raise BackendUnavailable("contained execution is supported only on Linux and macOS")
+def _trusted_sandbox_exec() -> Path:
+    candidate = Path("/usr/bin/sandbox-exec")
+    if not candidate.is_file():
+        raise BackendUnavailable("macOS sandbox-exec is not installed")
+    metadata = candidate.stat()
+    if metadata.st_uid != 0 or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise BackendUnavailable("macOS sandbox-exec must be root-owned and non-writable")
+    return candidate
+
+
+def _sbpl_path(path: Path) -> str:
+    value = str(path)
+    if any(ord(character) < 32 for character in value):
+        raise BackendUnavailable("macOS sandbox paths cannot contain control characters")
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _macos_argv(repo: Path, command: str, tool_paths: list[Path]
+                ) -> tuple[list[str], dict[str, str], Callable[[], None]]:
+    sandbox_exec = _trusted_sandbox_exec()
+    _, path_entries = _tool_mounts(tool_paths, repo)
+    resolved_tools = [path.expanduser().resolve(strict=True) for path in tool_paths]
+    temporary = tempfile.TemporaryDirectory(prefix="bashllm-", dir="/private/tmp")
     try:
-        arguments, environment = _linux_argv(repo, cwd, command, tool_paths)
+        temporary_path = Path(temporary.name)
+        for name in ("home", "tmp", "cache"):
+            (temporary_path / name).mkdir()
+        environment = {
+            "PATH": ":".join(path_entries + ["/usr/bin:/bin"]),
+            "HOME": str(temporary_path / "home"),
+            "TMPDIR": str(temporary_path / "tmp"),
+            "XDG_CACHE_HOME": str(temporary_path / "cache"),
+            "LC_ALL": "C",
+        }
+        profile = [
+            "(version 1)", "(allow default)",
+            f"(deny file-read* (subpath {_sbpl_path(Path.home().resolve())}))",
+            '(deny file-read* (subpath "/private/tmp"))',
+            '(deny file-read* (subpath "/private/var/folders"))',
+            f"(allow file-read* (subpath {_sbpl_path(repo)}))",
+            f"(allow file-read* (subpath {_sbpl_path(temporary_path)}))",
+            "(deny file-write*)",
+            f"(allow file-write* (subpath {_sbpl_path(repo)}))",
+            f"(allow file-write* (subpath {_sbpl_path(temporary_path)}))",
+            "(deny network*)",
+        ]
+        for path in resolved_tools:
+            scope = "subpath" if path.is_dir() else "literal"
+            profile.append(f"(allow file-read* ({scope} {_sbpl_path(path)}))")
+        profile_path = temporary_path / "sandbox.sb"
+        profile_path.write_text("\n".join(profile) + "\n", encoding="utf-8")
+        arguments = [str(sandbox_exec), "-f", str(profile_path), "/bin/bash", "-c", command]
+        return arguments, environment, temporary.cleanup
+    except BaseException:
+        temporary.cleanup()
+        raise
+
+
+def _no_cleanup() -> None:
+    pass
+
+
+def launch_command(repo: Path, cwd: Path, command: str, tool_paths: list[Path]
+                   ) -> tuple[list[str], dict[str, str], Callable[[], None]]:
+    """Return a contained launcher, after verifying it can start on this host."""
+    if sys.platform not in ("linux", "darwin"):
+        raise BackendUnavailable("contained execution is supported only on Linux and macOS")
+    cleanup: Callable[[], None] = _no_cleanup
+    try:
+        if sys.platform == "darwin":
+            arguments, environment, cleanup = _macos_argv(repo, command, tool_paths)
+        else:
+            arguments, environment = _linux_argv(repo, cwd, command, tool_paths)
         probe = [*arguments[:-1], ":"]
-        check = subprocess.run(probe, capture_output=True, text=True, timeout=5, env=environment)
+        check = subprocess.run(probe, cwd=cwd, capture_output=True, text=True, timeout=5, env=environment)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
-        raise BackendUnavailable(f"Bubblewrap capability check failed: {error}") from error
+        cleanup()
+        raise BackendUnavailable(f"containment capability check failed: {error}") from error
     if check.returncode:
+        cleanup()
         reason = check.stderr.strip()[:300] or f"exit {check.returncode}"
-        raise BackendUnavailable(f"Bubblewrap capability check failed: {reason}")
-    return arguments, environment
+        raise BackendUnavailable(f"containment capability check failed: {reason}")
+    return arguments, environment, cleanup
