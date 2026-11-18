@@ -15,3 +15,4 @@
 ## Comments
 
 - 2026-11-18: A noninteractive Codex demo used `bashllm_find` and `bashllm_read` for a repository question and no tool for arithmetic. A proposed run did not execute because no human approval was available. An interactive approved run and retry remain to be observed. See `docs/agents/codex-demo.md`.
+- 2026-11-18: An interactive Codex session reached a per-call approval dialog for `bashllm_run` with `command: pwd` and `cwd: .`; execution is awaiting a human decision.

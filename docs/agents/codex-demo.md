@@ -51,3 +51,5 @@ Three ephemeral `codex exec --json` sessions used the configuration above, with 
 | Compute `17 × 19` | No MCP call | Answered `323` |
 
 The noninteractive `exec` check establishes voluntary read-tool choice, no tool use for an unrelated question, and no silent execution when approval is unavailable. It does not establish a completed human-approved run or retry; test those in the interactive CLI before marking ticket 07 complete. No `bashllm_run` attempt reached the server during these three sessions, so they added no command-history entry.
+
+An interactive `codex --no-alt-screen --no-daemon` session with `features.shell_tool=false` and the same fixed MCP server reached the host's approval dialog for `bashllm_run` with `command: pwd` and `cwd: .`. The dialog offered “Allow” and “Cancel” and remained pending for a person's decision. The configured server repository was `/Users/anurag/Desktop/bashLLM`; the host dialog showed the tool arguments, while the repository path was fixed in the MCP server's launch configuration. This confirms that the host asks before this run, but does not count as an approved execution or retry.
