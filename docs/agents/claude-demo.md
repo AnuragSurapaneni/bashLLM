@@ -33,7 +33,7 @@ Create two temporary JSON files outside the repository. Replace `/absolute/path/
 ```json
 {
   "permissions": {
-    "ask": ["mcp__bashllm__bashllm_run"],
+    "ask": ["mcp__bashllm__bashllm_run", "mcp__bashllm__bashllm_diagnose"],
     "deny": ["Bash"]
   }
 }
@@ -50,6 +50,8 @@ claude --restricted --strict-mcp-config \
 ```
 
 `--restricted` removes built-in command and code execution tools, including Bash. `--strict-mcp-config` limits MCP configuration to the explicitly supplied file. Do not use `--dangerously-skip-permissions`, `--permission-mode auto`, or a standing allow rule for the run tool. The MCP server advertises `bashllm_run` as requiring user interaction on every call, including retries; the `ask` rule and Manual mode make that intent visible in the host setup. Inspect `/mcp` to confirm the server is connected and `/permissions` to confirm the rule. Choose the one-time approval option for each run, after reading its `command` and `cwd` arguments; `--repo` is fixed in the MCP configuration.
+
+The server also advertises `bashllm_diagnose` as requiring user interaction. After a failed run, approve a diagnostic check separately after reviewing its recorded attempt ID. `bashllm_result` can retrieve bounded raw output without a new execution approval.
 
 ## Exercise tool choice
 

@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from bashllm import history
+from bashllm.diagnostics import summarize
 from bashllm.sandbox import BackendUnavailable, agent_tool_grants, launch_command
 
 
@@ -87,7 +88,7 @@ def _refuse(args: argparse.Namespace, connection, repo: Path, cwd: Path,
         "status": "backend_unavailable", "error": error, "exit_code": 69,
     }
     if args.agent and connection:
-        history.record(connection, str(cwd), command, {
+        payload["attempt_id"] = history.record(connection, str(cwd), command, {
             "status": payload["status"], "error": error, "exit_code": 69,
         })
     if connection:
@@ -146,12 +147,18 @@ def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             "command": command,
             "status": "not_executed",
             "previous_exit_code": prior["exit_code"],
+            "previous_attempt_id": prior["id"],
             "previous_stdout": prior["stdout"],
             "previous_stderr": prior["stderr"],
             "previous_stdout_truncated": prior["stdout_truncated"],
             "previous_stderr_truncated": prior["stderr_truncated"],
             "previous_timed_out": prior["timed_out"],
         }
+        previous_diagnostic = summarize(prior)
+        if previous_diagnostic is not None:
+            payload["previous_diagnostic"] = previous_diagnostic
+        if args.agent:
+            payload["attempt_id"] = history.record(connection, str(cwd), command, {"status": "not_executed", "exit_code": 3})
         if args.json:
             print(json.dumps(payload))
         else:
@@ -161,8 +168,6 @@ def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
                 f"previous_stdout={prior['stdout']!r}\nprevious_stderr={prior['stderr']!r}",
                 file=sys.stderr,
             )
-        if args.agent:
-            history.record(connection, str(cwd), command, {"status": "not_executed", "exit_code": 3})
         connection.close()
         return 3
 
@@ -187,8 +192,11 @@ def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         "status": "executed",
         **result,
     }
+    diagnostic = summarize(result)
+    if diagnostic is not None:
+        payload["diagnostic"] = diagnostic
     if connection:
-        history.record(connection, str(cwd), command, {
+        payload["attempt_id"] = history.record(connection, str(cwd), command, {
             key: payload[key] for key in (
                 "exit_code", "stdout", "stderr", "stdout_truncated", "stderr_truncated",
                 "timed_out", "duration_seconds",

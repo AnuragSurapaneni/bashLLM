@@ -35,9 +35,9 @@ class AgentIntegrationTests(unittest.TestCase):
         result = self.invoke("agent-spec", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["schema_version"], 2)
         commands = {entry["name"]: entry for entry in payload["commands"]}
-        self.assertEqual(set(commands), {"inspect", "context", "find", "search", "read", "history", "run"})
+        self.assertEqual(set(commands), {"inspect", "context", "find", "search", "read", "history", "result", "diagnose", "run"})
         self.assertIn("--agent", commands["run"]["arguments"]["required"])
         self.assertIn("--no-history", commands["run"]["arguments"]["forbidden"])
         self.assertIn("backend_unavailable", commands["run"]["result_by_status"])

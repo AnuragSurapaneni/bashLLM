@@ -95,7 +95,8 @@ def _tool_mounts(paths: list[Path], repo: Path) -> tuple[list[str], list[str]]:
     return arguments, path_entries
 
 
-def _linux_argv(repo: Path, cwd: Path, command: str, tool_paths: list[Path]) -> tuple[list[str], dict[str, str]]:
+def _linux_argv(repo: Path, cwd: Path, command: str, tool_paths: list[Path],
+                read_only_repo: bool = False) -> tuple[list[str], dict[str, str]]:
     bwrap = _trusted_bubblewrap()
     mounts, path_entries = _tool_mounts(tool_paths, repo)
     environment = _minimal_environment()
@@ -105,7 +106,7 @@ def _linux_argv(repo: Path, cwd: Path, command: str, tool_paths: list[Path]) -> 
         "--unshare-ipc", "--unshare-uts", "--die-with-parent", "--new-session",
         "--clearenv", "--tmpfs", "/tmp", "--dir", "/tmp/bashllm-home",
         "--dir", "/tmp/bashllm-cache", "--proc", "/proc", "--dev", "/dev",
-        *_runtime_mounts(), *mounts, "--bind", str(repo), str(repo),
+        *_runtime_mounts(), *mounts, "--ro-bind" if read_only_repo else "--bind", str(repo), str(repo),
     ]
     for key, value in environment.items():
         arguments.extend(("--setenv", key, value))
@@ -130,7 +131,7 @@ def _sbpl_path(path: Path) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def _macos_argv(repo: Path, command: str, tool_paths: list[Path]
+def _macos_argv(repo: Path, command: str, tool_paths: list[Path], read_only_repo: bool = False
                 ) -> tuple[list[str], dict[str, str], Callable[[], None]]:
     sandbox_exec = _trusted_sandbox_exec()
     _, path_entries = _tool_mounts(tool_paths, repo)
@@ -155,10 +156,14 @@ def _macos_argv(repo: Path, command: str, tool_paths: list[Path]
             f"(allow file-read* (subpath {_sbpl_path(repo)}))",
             f"(allow file-read* (subpath {_sbpl_path(temporary_path)}))",
             "(deny file-write*)",
-            f"(allow file-write* (subpath {_sbpl_path(repo)}))",
             f"(allow file-write* (subpath {_sbpl_path(temporary_path)}))",
             "(deny network*)",
         ]
+        for ancestor in repo.parents:
+            if ancestor != Path("/"):
+                profile.append(f"(allow file-read-metadata (literal {_sbpl_path(ancestor)}))")
+        if not read_only_repo:
+            profile.append(f"(allow file-write* (subpath {_sbpl_path(repo)}))")
         for path in resolved_tools:
             scope = "subpath" if path.is_dir() else "literal"
             profile.append(f"(allow file-read* ({scope} {_sbpl_path(path)}))")
@@ -175,7 +180,8 @@ def _no_cleanup() -> None:
     pass
 
 
-def launch_command(repo: Path, cwd: Path, command: str, tool_paths: list[Path]
+def launch_command(repo: Path, cwd: Path, command: str, tool_paths: list[Path],
+                   read_only_repo: bool = False
                    ) -> tuple[list[str], dict[str, str], Callable[[], None]]:
     """Return a contained launcher, after verifying it can start on this host."""
     if sys.platform not in ("linux", "darwin"):
@@ -183,9 +189,9 @@ def launch_command(repo: Path, cwd: Path, command: str, tool_paths: list[Path]
     cleanup: Callable[[], None] = _no_cleanup
     try:
         if sys.platform == "darwin":
-            arguments, environment, cleanup = _macos_argv(repo, command, tool_paths)
+            arguments, environment, cleanup = _macos_argv(repo, command, tool_paths, read_only_repo)
         else:
-            arguments, environment = _linux_argv(repo, cwd, command, tool_paths)
+            arguments, environment = _linux_argv(repo, cwd, command, tool_paths, read_only_repo)
         probe = [*arguments[:-1], ":"]
         check = subprocess.run(probe, cwd=cwd, capture_output=True, text=True, timeout=5, env=environment)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:

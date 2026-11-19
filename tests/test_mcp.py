@@ -78,13 +78,14 @@ class McpProcessTests(unittest.TestCase):
         tools = self.exchange(2, "tools/list")["result"]["tools"]
         self.assertEqual([tool["name"] for tool in tools], [
             "bashllm_find", "bashllm_search", "bashllm_read", "bashllm_inspect",
-            "bashllm_context", "bashllm_history", "bashllm_run",
+            "bashllm_context", "bashllm_history", "bashllm_diagnose", "bashllm_result", "bashllm_run",
         ])
         self.assertEqual(tools[-1]["inputSchema"]["required"], ["repo", "command"])
         self.assertEqual(tools[-1]["inputSchema"]["properties"]["repo"]["const"], str(self.repo.resolve()))
         self.assertFalse(tools[-1]["annotations"]["readOnlyHint"])
         self.assertTrue(tools[-1]["_meta"]["anthropic/requiresUserInteraction"])
         self.assertNotIn("tool_path", tools[-1]["inputSchema"]["properties"])
+        self.assertTrue(tools[-3]["_meta"]["anthropic/requiresUserInteraction"])
 
     def test_read_and_search_use_fixed_repository(self) -> None:
         self.initialize()
@@ -126,10 +127,39 @@ class McpProcessTests(unittest.TestCase):
         payload = result["structuredContent"]
         self.assertIn(payload["status"], {"executed", "backend_unavailable"})
         self.assertEqual(payload["command"], "pwd")
+        self.assertGreater(payload["attempt_id"], 0)
         self.assertTrue((self.repo / ".bashllm" / "history.sqlite3").exists())
         history = self.call(3, "bashllm_history", {"limit": 5})
         self.assertFalse(history["isError"])
         self.assertEqual(history["structuredContent"]["entries"][0]["command"], "pwd")
+
+    def test_diagnostic_and_result_use_recorded_attempt(self) -> None:
+        self.initialize()
+        run = self.call(2, "bashllm_run", {
+            "repo": str(self.repo.resolve()), "command": "python3 -c 'import absent_test_package'",
+        })["structuredContent"]
+        attempt_id = run["attempt_id"]
+        detail = self.call(3, "bashllm_result", {"attempt_id": attempt_id, "max_bytes": 500})
+        self.assertFalse(detail["isError"])
+        self.assertEqual(detail["structuredContent"]["attempt_id"], attempt_id)
+        diagnosis = self.call(4, "bashllm_diagnose", {"attempt_id": attempt_id})
+        self.assertIn("structuredContent", diagnosis)
+        self.assertEqual(diagnosis["structuredContent"]["recorded_attempt"]["id"], attempt_id)
+        if run["status"] == "executed":
+            self.assertNotIn("stderr", run)
+            self.assertIn("diagnostic", run)
+        history = self.call(5, "bashllm_history", {})["structuredContent"]["entries"]
+        self.assertEqual(len(history), 1)
+
+    def test_unknown_attempt_does_not_create_history(self) -> None:
+        self.initialize()
+        invalid = self.call(2, "bashllm_diagnose", {"attempt_id": 0})
+        self.assertTrue(invalid["isError"])
+        self.assertIn("error", invalid["structuredContent"])
+        diagnosis = self.call(2, "bashllm_diagnose", {"attempt_id": 999})
+        self.assertTrue(diagnosis["isError"])
+        self.assertEqual(diagnosis["structuredContent"]["error"], "attempt not found")
+        self.assertFalse((self.repo / ".bashllm").exists())
 
     def test_oversized_request_does_not_break_following_calls(self) -> None:
         self.process.stdin.write("x" * 1_000_001 + "\n")

@@ -69,6 +69,8 @@ class HistoryCommandTests(unittest.TestCase):
             self.assertEqual(payload["status"], "not_executed")
             self.assertEqual(payload["previous_exit_code"], 7)
             self.assertIn("once", payload["previous_stdout"])
+            self.assertEqual(payload["previous_attempt_id"], json.loads(first.stdout)["attempt_id"])
+            self.assertEqual(payload["previous_diagnostic"]["category"], "unclassified")
 
     def test_retry_executes_again_and_different_directory_is_independent(self):
         with tempfile.TemporaryDirectory() as root:

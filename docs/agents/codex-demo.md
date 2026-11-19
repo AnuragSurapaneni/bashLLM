@@ -22,9 +22,14 @@ tool_timeout_sec = 75
 
 [mcp_servers.bashllm.tools.bashllm_run]
 approval_mode = "prompt"
+
+[mcp_servers.bashllm.tools.bashllm_diagnose]
+approval_mode = "prompt"
 ```
 
 Start `codex -C /ABS/REPO` interactively with that `CODEX_HOME`. The `bashllm_run` approval should show the command, `cwd`, and `repo`. The server fixes the repository at launch, advertises its resolved path as a required constant tool argument, and rejects a different path. Check all three values before approving each call, including retries. The `prompt` approval mode is documented in [Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp), and `features.shell_tool` is documented in the [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+
+After a failed run, the agent can read its compact diagnostic and request `bashllm_result` for bounded raw output. `bashllm_diagnose` launches a separate contained check for the recorded attempt ID; inspect its arguments and approve that call separately. It does not install dependencies or retry the command.
 
 For a disposable read-only check without changing user configuration, the installed Codex CLI 0.169.0 also accepted `codex exec --ignore-user-config --disable shell_tool --sandbox read-only` with `-c` overrides for `approval_policy`, `approvals_reviewer`, and the MCP server table above. In the local check, the server command was `.venv/bin/python` with arguments `-m bashllm.mcp_server --repo /ABS/REPO` and `PYTHONPATH=/ABS/REPO/src`, because the new entry point was not yet installed in the development virtual environment. Use the installed entry point for normal setup. For example:
 
@@ -37,6 +42,7 @@ codex exec --ignore-user-config --strict-config --ephemeral \
   -c 'mcp_servers.bashllm.required=true' \
   -c 'mcp_servers.bashllm.tool_timeout_sec=75' \
   -c 'mcp_servers.bashllm.tools.bashllm_run.approval_mode="prompt"' \
+  -c 'mcp_servers.bashllm.tools.bashllm_diagnose.approval_mode="prompt"' \
   --json 'Identify the Python module that implements the MCP server.'
 ```
 

@@ -1,7 +1,8 @@
 """Small, dependency-free MCP stdio facade for one configured repository.
 
 The server exposes fixed bashllm operations, never a general process runner.
-The host must require human approval for every bashllm_run tool call.
+The host must require human approval for every bashllm_run and
+bashllm_diagnose tool call.
 """
 
 import argparse
@@ -14,7 +15,7 @@ from typing import Any
 
 
 PROTOCOL_VERSION = "2025-11-25"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 MAX_MESSAGE_BYTES = 1_000_000
 
 
@@ -55,6 +56,15 @@ TOOLS = [
           {"max_tokens": _integer("Approximate context token limit", 1, 4000)}, []),
     _tool("history", "List recent bashllm command attempts.",
           {"limit": _integer("Maximum entries", 0, 50)}, []),
+    _tool("diagnose", "Check a recorded run in containment. Requires human approval on every call.",
+          {"attempt_id": _integer("Recorded command attempt ID", 1, 2147483647),
+           "group": _string("Optional Python dependency group", 100),
+           "max_detail": _integer("Diagnostic detail budget", 800, 4000)},
+          ["attempt_id"], read_only=False),
+    _tool("result", "Retrieve bounded raw output for a recorded attempt without re-executing it.",
+          {"attempt_id": _integer("Recorded command attempt ID", 1, 2147483647),
+           "max_bytes": _integer("Maximum bytes from each stream", 0, 32768)},
+          ["attempt_id"]),
     _tool("run", "Run one bounded Bash command in the configured repository. "
           "Requires human approval on every invocation in the MCP host.",
           {"repo": _string("Fixed repository path shown for human approval", 4096),
@@ -66,6 +76,7 @@ TOOLS = [
 ]
 TOOL_BY_NAME = {tool["name"]: tool for tool in TOOLS}
 TOOL_BY_NAME["bashllm_run"]["_meta"] = {"anthropic/requiresUserInteraction": True}
+TOOL_BY_NAME["bashllm_diagnose"]["_meta"] = {"anthropic/requiresUserInteraction": True}
 
 
 class InvalidArguments(ValueError):
@@ -112,6 +123,14 @@ def _command(name: str, args: dict[str, Any], repo: Path) -> list[str]:
         command += ["--max-tokens", str(args.get("max_tokens", 1500))]
     elif name == "history":
         command += ["--limit", str(args.get("limit", 10))]
+    elif name == "diagnose":
+        command += ["--attempt-id", str(args["attempt_id"]), "--max-detail",
+                    str(args.get("max_detail", 1600))]
+        if "group" in args:
+            command += ["--group", args["group"]]
+    elif name == "result":
+        command += ["--attempt-id", str(args["attempt_id"]), "--max-bytes",
+                    str(args.get("max_bytes", 4096))]
     elif name == "run":
         cwd = Path(args.get("cwd", "."))
         if cwd.is_absolute() or ".." in cwd.parts or not (repo / cwd).resolve().is_relative_to(repo):
@@ -143,7 +162,13 @@ def _call(name: str, arguments: Any, repo: Path) -> dict[str, Any]:
         detail = process.stderr.strip() or process.stdout.strip() or "no output"
         return {"content": [{"type": "text", "text": detail[:4096]}], "isError": True}
     structured = payload if isinstance(payload, dict) else {"entries": payload}
-    return {"content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}],
+    if name == "bashllm_run" and isinstance(payload, dict) and (payload.get("diagnostic") or payload.get("previous_diagnostic")):
+        structured = {key: payload[key] for key in (
+            "attempt_id", "status", "exit_code", "diagnostic", "previous_attempt_id",
+            "previous_exit_code", "previous_diagnostic") if key in payload}
+    visible = structured if name == "bashllm_run" and isinstance(payload, dict) and (
+        payload.get("diagnostic") or payload.get("previous_diagnostic")) else payload
+    return {"content": [{"type": "text", "text": json.dumps(visible, ensure_ascii=False)}],
             "structuredContent": structured,
             "isError": process.returncode != 0}
 
@@ -174,7 +199,7 @@ def _dispatch(message: Any, repo: Path, initialized: bool) -> tuple[dict[str, An
         return _response(request_id, result={"protocolVersion": PROTOCOL_VERSION,
                     "capabilities": {"tools": {}},
                     "serverInfo": {"name": "bashllm", "version": SERVER_VERSION},
-                    "instructions": "Approve every bashllm_run invocation in the host. "
+                    "instructions": "Approve every bashllm_run and bashllm_diagnose invocation in the host. "
                                     "The server confines runs but cannot enforce host approval."}), True
     if not initialized:
         return _response(request_id, error={"code": -32000, "message": "Initialize first"}), initialized
@@ -191,7 +216,8 @@ def _dispatch(message: Any, repo: Path, initialized: bool) -> tuple[dict[str, An
         try:
             result = _call(params["name"], params.get("arguments", {}), repo)
         except InvalidArguments as error:
-            result = {"content": [{"type": "text", "text": str(error)}], "isError": True}
+            result = {"content": [{"type": "text", "text": str(error)}],
+                      "structuredContent": {"error": str(error)}, "isError": True}
         return _response(request_id, result=result), initialized
     return _response(request_id, error={"code": -32601, "message": "Method not found"}), initialized
 
