@@ -72,6 +72,8 @@ Command attempts are saved privately under the repository's ignored `.bashllm/` 
 
 Failed runs include a bounded `diagnostic` with an error category, evidence, uncertainty, and up to three next steps. A recorded run includes `attempt_id`. Use `result --repo REPO --attempt-id ID --max-bytes 4096 --json` to read bounded raw output later without rerunning the command. Use `diagnose --repo REPO --attempt-id ID --json` for a current check of the sanitized environment and Python interpreter. The check uses the same containment backend, reports declared dependency availability from package metadata, and never installs packages or retries the command. It is a separate process-launching action and requires its own human approval when exposed through an agent harness. `--group NAME` checks one declared optional dependency group; `--max-detail` adjusts the diagnostic detail budget. The reported Python search path comes from an isolated probe and can differ from a command that changed its own Python path.
 
+The [MCP token-savings test](tests/test_mcp.py) generates a large failure and requires at least **3,000 estimated tokens saved** by the compact response. On the macOS development host it measured **4,339 estimated tokens saved**: 4,480 for a conservative baseline that counts only duplicated raw stderr, versus 141 for the compact response. The estimate uses UTF-8 bytes divided by four, not a model tokenizer. See the [diagnostic benchmark](docs/agents/diagnostic-benchmark.md) for seven reproducible scenarios and the measurement method.
+
 ## Agent integration
 
 The versioned, harness-neutral command description is available from:
