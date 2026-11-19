@@ -2,8 +2,6 @@
 
 Coding assistants can spend a lot of tokens trying to understand a project. They may search for the same files, repeat commands, or read pages of error output before finding the useful line. `bashllm` gives them a short starting guide to your project, remembers what they have tried, and turns common command failures into smaller, more useful results.
 
-Tokens are small pieces of text in an AI conversation. Using fewer of them leaves more room for the work you actually want the assistant to do.
-
 You can use `bashllm` yourself in a terminal or connect it to a coding assistant. It works on macOS and Linux with Python 3.11 or newer.
 
 ## Get started
