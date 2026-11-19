@@ -44,22 +44,45 @@ def connect(repo: Path) -> sqlite3.Connection:
 
 def previous(connection: sqlite3.Connection, cwd: str, command: str) -> dict | None:
     rows = connection.execute(
-        "SELECT result FROM attempts WHERE cwd = ? AND command = ? ORDER BY id DESC",
+        "SELECT id, result FROM attempts WHERE cwd = ? AND command = ? ORDER BY id DESC",
         (cwd, command),
     )
     for row in rows:
         result = json.loads(row["result"])
         if result.get("status", "executed") == "executed":
-            return result
+            return {"id": row["id"], **result}
     return None
 
 
-def record(connection: sqlite3.Connection, cwd: str, command: str, result: dict) -> None:
+def record(connection: sqlite3.Connection, cwd: str, command: str, result: dict) -> int:
     with connection:
-        connection.execute(
+        cursor = connection.execute(
             "INSERT INTO attempts (cwd, command, result) VALUES (?, ?, ?)",
             (cwd, command, json.dumps(result)),
         )
+    return cursor.lastrowid
+
+
+def attempt(connection: sqlite3.Connection, attempt_id: int) -> dict | None:
+    row = connection.execute(
+        "SELECT id, cwd, command, result, created_at FROM attempts WHERE id = ?",
+        (attempt_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {"id": row["id"], "cwd": row["cwd"], "command": row["command"],
+            "created_at": row["created_at"], **json.loads(row["result"])}
+
+
+def load_attempt(repo: Path, attempt_id: int) -> dict | None:
+    """Load an existing attempt without creating history for a missing store."""
+    if not (repo / ".bashllm/history.sqlite3").is_file():
+        return None
+    connection = connect(repo)
+    try:
+        return attempt(connection, attempt_id)
+    finally:
+        connection.close()
 
 
 def recent(connection: sqlite3.Connection, limit: int) -> list[dict]:
