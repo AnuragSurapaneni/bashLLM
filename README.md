@@ -1,139 +1,81 @@
 # bashllm
 
-`bashllm` is a Python CLI for exploring a repository, preparing context for a coding agent, and running bounded Bash commands. It generates a static briefing, records command attempts, and blocks accidental exact repeats. A shared MCP server makes the same tools available to coding agents.
+Coding assistants can spend a lot of tokens trying to understand a project. They may search for the same files, repeat commands, or read pages of error output before finding the useful line. `bashllm` gives them a short starting guide to your project, remembers what they have tried, and turns common command failures into smaller, more useful results.
 
-## Quick start
+Tokens are small pieces of text in an AI conversation. Using fewer of them leaves more room for the work you actually want the assistant to do.
 
-From the `bashllm` checkout, install the CLI and inspect a repository:
+You can use `bashllm` yourself in a terminal or connect it to a coding assistant. It works on macOS and Linux with Python 3.11 or newer.
+
+## Get started
+
+From this repository, install `bashllm` and ask it to look at your project:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install .
-.venv/bin/bashllm inspect --repo /absolute/path/to/project
-.venv/bin/bashllm context --repo /absolute/path/to/project
+.venv/bin/bashllm inspect --repo /path/to/your/project
+.venv/bin/bashllm context --repo /path/to/your/project
 ```
 
-`inspect` creates `/absolute/path/to/project/.bashllm/BRIEFING.md` and `GRAPH.dot`. Run `inspect` again when `context` reports that files changed. These read and inspection commands work even if command containment is unavailable.
+Replace `/path/to/your/project` with the full path to the project you want to work on. `inspect` reads the project and writes a guide at `/path/to/your/project/.bashllm/BRIEFING.md`. `context` prints a shorter version that you can give to an assistant. If it says the guide is out of date, run `inspect` again. This step does not run your project's code.
 
-To run a command, first set up the platform backend described below, then use:
+If you update this `bashllm` checkout later, run `.venv/bin/python -m pip install .` again to install the new version.
+
+## How it saves tokens
+
+`bashllm` helps an assistant start with a project map instead of discovering the same facts through many searches. It remembers command attempts, so an exact repeat does not waste another run. When a command fails, the assistant gets a short error summary and can ask for more detail only when it needs it.
+
+Here are estimated savings from seven repeatable tasks on a macOS development machine. “Before” models the previous, longer command response. For the Python tasks, it also includes separate commands to check the Python setup. The numbers are estimates based on response size, not counts from a specific AI model.
+
+| Task | Before | Current `bashllm` | Tokens saved |
+| --- | ---: | ---: | ---: |
+| Find the wrong Python interpreter | 1,576 | 966 | 610 |
+| Find a missing Python package | 1,571 | 1,013 | 558 |
+| Check a package version conflict | 1,590 | 956 | 634 |
+| Find a Python syntax error | 414 | 221 | 193 |
+| Find a missing command | 209 | 181 | 28 |
+| Understand a timed-out command | 180 | 175 | 5 |
+| Handle very long output | 16,725 | 354 | 16,371 |
+
+The measured savings depend on the task and its output. An [automated test](tests/test_mcp.py) also checks that a large failure saves at least 3,000 estimated tokens. It measured 4,339 on the development machine. You can see the setup and full results in the [benchmark notes](docs/agents/diagnostic-benchmark.md).
+
+## Use it from the terminal
+
+`inspect` makes a guide to the project's files and likely starting points. `context` prints a compact version with recent command history. `find`, `search`, and `read` help you look at specific files without a long chain of shell commands.
+
+To run a command in your project, use `run`:
 
 ```bash
-.venv/bin/bashllm run --repo /absolute/path/to/project --cwd . -- 'pwd'
-.venv/bin/bashllm history --repo /absolute/path/to/project
+.venv/bin/bashllm run --repo /path/to/your/project --cwd . -- 'pwd'
 ```
 
-`--cwd .` means the project root. The first command prints the command output and execution status; `history` shows the recorded attempt. Use `--json` on any command for structured output.
-
-## Install
-
-Requires Python 3.11 or later and Bash on macOS or Linux. Repository reading and inspection have no runtime dependencies. Contained execution requires a trusted system installation of Bubblewrap and usable user namespaces on Linux, or Apple's `sandbox-exec` on macOS. 
-
-Install from the checkout as shown in Quick start. Re-run `.venv/bin/python -m pip install .` after updating the checkout so the installed entry points include the latest commands.
-
-On Linux, install the distribution's system `bubblewrap` package and enable usable user namespaces. `bashllm` looks for a trusted `/usr/bin/bwrap` or `/bin/bwrap`; a copy installed elsewhere is not used. On macOS, `run` uses the system `/usr/bin/sandbox-exec`. The backend is checked when `run` starts, so installation alone does not establish that execution is available.
-
-## Choose a command
-
-| Command | Use it to |
-| --- | --- |
-| `inspect --repo REPO` | Generate a static briefing and dependency graph. |
-| `context --repo REPO` | Get a compact handoff and recent attempts after `inspect`. |
-| `find PATTERN --repo REPO` | Find files by glob. |
-| `search TEXT --repo REPO` | Search repository text literally. |
-| `read PATH --repo REPO` | Read a bounded repository file. |
-| `history --repo REPO` | Review command attempts and outcomes. |
-| `result --repo REPO --attempt-id ID` | Retrieve bounded output from a recorded attempt. |
-| `diagnose --repo REPO --attempt-id ID` | Check a recorded failure in containment. |
-| `run --repo REPO --cwd DIR -- 'COMMAND'` | Execute one bounded Bash command. |
-| `agent-spec --json` | Get the versioned CLI contract for an agent harness. |
-
-Run `.venv/bin/bashllm COMMAND --help` for each command's options. Paths supplied to `read` are relative to the repository. The read commands skip generated directories and limit their output.
-
-## Run a command
+The `--cwd .` part starts the command at the project root. `bashllm` records the attempt and stops you from running the exact same command there again by accident. Add `--retry` if you want to run it again. You can see earlier attempts with:
 
 ```bash
-.venv/bin/bashllm run --repo . --cwd . -- 'pwd'
-.venv/bin/bashllm run --repo . --cwd . --json -- 'printf "hello\\n"'
+.venv/bin/bashllm history --repo /path/to/your/project
 ```
 
-Pass one Bash command string after `--`. `--repo` names the repository root, and `--cwd` names a directory inside it; a relative `--cwd` is resolved from the repository root. Each call starts a fresh Bash process only after the platform containment backend passes a capability check. If the backend is missing or fails to start, `run` refuses the command with exit code 69 and a `backend_unavailable` JSON status. 
-
-The default timeout is 60 seconds and each output stream retains at most 32 KiB. Use `--timeout SECONDS` and `--max-output BYTES` to adjust them. The CLI returns the command's exit code, or 124 on timeout. JSON output includes the exit code, duration, timeout status, and per-stream truncation flags.
-
-Command attempts are saved privately under the repository's ignored `.bashllm/` directory. An exact repeat of the same executed command and working directory is blocked with the earlier result and a `not_executed` status. Use `--retry` to execute it again or `--no-history` to skip history lookup and storage for a human-invoked run. 
+With `--json`, a failed run includes a short error summary and suggested next checks. For Python problems, `diagnose` can check which Python interpreter and packages are available. Use `--json` with `run` to get its `attempt_id`, then pass that number to `diagnose`:
 
 ```bash
-.venv/bin/bashllm history --repo . --limit 10 --json
+.venv/bin/bashllm run --repo /path/to/your/project --cwd . --json -- 'python3 app.py'
+.venv/bin/bashllm diagnose --repo /path/to/your/project --attempt-id 12 --json
 ```
 
-`run --json` reports `status: "executed"` for a launched command, `status: "not_executed"` with exit code 3 for a blocked repeat, or `status: "backend_unavailable"` with exit code 69 when containment cannot start. Agent attempts, including refusals and repeats, appear in history. A human CLI call can use `--no-history`; an agent call cannot.
+Replace `12` with the `attempt_id` from your run. `diagnose` checks the environment as it is *now*, so it may differ from the environment at the time of an older failure. It does not install packages or rerun your command.
 
-Failed runs include a bounded `diagnostic` with an error category, evidence, uncertainty, and up to three next steps. A recorded run includes `attempt_id`. Use `result --repo REPO --attempt-id ID --max-bytes 4096 --json` to read bounded raw output later without rerunning the command. Use `diagnose --repo REPO --attempt-id ID --json` for a current check of the sanitized environment and Python interpreter. 
+## Connect a coding assistant
 
-The [MCP token-savings test](tests/test_mcp.py) generates a large failure and requires at least **3,000 estimated tokens saved** by the compact response. On the macOS development host it measured **4,339 estimated tokens saved**: 4,480 for a conservative baseline that counts only duplicated raw stderr, versus 141 for the compact response. The estimate uses UTF-8 bytes divided by four, not a model tokenizer. See the [diagnostic benchmark](docs/agents/diagnostic-benchmark.md) for seven reproducible scenarios and the measurement method.
+`bashllm` can give the same tools directly to an assistant through MCP, a connection for assistant tools. Follow the [Codex guide](docs/agents/codex-demo.md) or [Claude Code guide](docs/agents/claude-demo.md) to set it up. The assistant can then ask for a short project guide, run a command with your approval, and check a failure without filling the conversation with raw output.
 
-Estimated savings by task in that benchmark (macOS, 2026-11-19):
+The assistant's app must ask for your approval before **every** command run or diagnostic check. `bashllm` cannot show that approval prompt itself. The setup guides explain how to require it.
 
-| Task | Baseline tokens | With diagnostics | Tokens saved | Tool calls saved |
-| --- | ---: | ---: | ---: | ---: |
-| Wrong interpreter | 1,576 | 966 | 610 | 1 |
-| Missing distribution | 1,571 | 1,013 | 558 | 1 |
-| Version conflict | 1,590 | 956 | 634 | 1 |
-| Syntax error | 414 | 221 | 193 | 0 |
-| Missing executable | 209 | 181 | 28 | 0 |
-| Timeout | 180 | 175 | 5 | 0 |
-| Truncated output | 16,725 | 354 | 16,371 | 0 |
+Reading and inspecting files works without extra system setup. Running commands needs Bubblewrap on Linux or the system `sandbox-exec` tool on macOS. If that protection is unavailable, `bashllm` refuses to run the command. It does not fall back to an unrestricted run. The macOS protection is best effort; see the [macOS notes](docs/agents/macos-containment.md) for its limits.
 
-## Agent integration
+## For contributors
 
-The versioned, harness-neutral command description is available from:
-
-```bash
-.venv/bin/bashllm agent-spec --json
-```
-
-Give this description to an agent harness as its tool contract. It explains when to use the read commands and `run`, how to parse JSON, and when to leave `bashllm` unused. For an MCP host, configure a stdio server with the installed executable and a fixed repository:
-
-```json
-{
-  "command": "/absolute/path/to/bashLLM/.venv/bin/bashllm-mcp",
-  "args": ["--repo", "/absolute/path/to/project"]
-}
-```
-
-The host starts that executable and exposes fixed-repository `find`, `search`, `read`, `inspect`, `context`, `history`, `result`, `diagnose`, and `run` tools. The run tool requires the fixed repository path as a visible argument and rejects a mismatch. It always invokes the audited agent path for `run`. Failed MCP runs return a compact summary; `bashllm_result` retrieves bounded raw output by attempt ID. Configure the host to prompt a human for **every** `bashllm_run` and `bashllm_diagnose` call, including retries, and disable its generic shell tool when you need all command execution to pass through this boundary. The MCP server cannot verify that a host displayed or received human approval. See the [Codex CLI guide](docs/agents/codex-demo.md) and [Claude Code guide](docs/agents/claude-demo.md) for complete host configuration.
-
-## Explore files
-
-```bash
-.venv/bin/bashllm find '*.py' --repo .
-.venv/bin/bashllm search 'TODO' --repo . --glob '*.py'
-.venv/bin/bashllm read src/bashllm/cli.py --repo . --max-bytes 4096
-```
-
-These commands skip generated directories and support `--json`. `find` and `search` accept `--max-results`; `search` and `read` accept `--max-bytes`. Truncation is reported in both output formats.
-
-## Generate a preflight briefing
-
-```bash
-.venv/bin/bashllm inspect --repo .
-```
-
-The static scan writes `.bashllm/BRIEFING.md` and `.bashllm/GRAPH.dot`. The briefing maps files, likely entry points, tests, build commands, and evidence paths; it embeds a compact Mermaid dependency graph. The DOT artifact holds the full graph within scan limits. Analysis recognizes Python, JavaScript/TypeScript, Rust, Go, and Fortran projects and produces a basic file map for other languages. It does not run project code. Use `--max-files`, `--max-directories`, `--max-depth`, and `--max-file-bytes` to adjust scan limits; the briefing reports omissions.
-
-## Hand context to an agent
-
-```bash
-.venv/bin/bashllm context --repo .
-.venv/bin/bashllm context --repo . --max-tokens 3000 --json
-```
-
-`context` prints a compact briefing plus recent command attempts. It warns when file paths, sizes, or modification times have changed since `inspect`; rerun `inspect` after that warning. The default output budget approximates 1,500 tokens, and JSON reports truncation and stale reasons. Generated state stays in the ignored `.bashllm/` directory.
-
-## Test
+Run the tests with:
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
-
-The tests install the package in a temporary virtual environment and invoke the installed CLI.
