@@ -17,3 +17,5 @@ Observed on the macOS development host on 2026-11-19:
 | Truncated output | 1 | 1 | 16,725 | 354 |
 
 The fixed Python workflow saves one exploratory call. Compact responses reduce the estimated returned tokens in these scenarios, especially when raw output is truncated. Actual agent choices, output content, platform paths, and host handling of MCP text and structured content can change these numbers. This comparison measures response cost and tool calls, not task completion quality or model reasoning tokens.
+
+The installed MCP process test also generates an 8 KiB failure and requires at least **3,000 estimated tokens saved**. Its baseline counts only the raw stderr that the previous adapter would have duplicated, making the assertion a conservative response-size check. On this host it measured **4,339 estimated tokens saved** (4,480 baseline, 141 compact).

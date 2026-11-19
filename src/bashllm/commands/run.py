@@ -15,6 +15,17 @@ from bashllm.diagnostics import summarize
 from bashllm.sandbox import BackendUnavailable, agent_tool_grants, launch_command
 
 
+def _stop_process(process: subprocess.Popen) -> None:
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        if process.poll() is None:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+
+
 def _run_bounded(argv: list[str], cwd: Path, timeout: float, max_output: int,
                  environment: dict[str, str]) -> dict:
     started = time.monotonic()
@@ -40,10 +51,7 @@ def _run_bounded(argv: list[str], cwd: Path, timeout: float, max_output: int,
             if now >= deadline:
                 if not timed_out:
                     timed_out = True
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                    _stop_process(process)
                     deadline = now + 1.0
                 else:
                     break
@@ -64,10 +72,7 @@ def _run_bounded(argv: list[str], cwd: Path, timeout: float, max_output: int,
             if not pipe.closed:
                 pipe.close()
         if process.poll() is None:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            _stop_process(process)
         process.wait()
 
     return {

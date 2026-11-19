@@ -151,6 +151,41 @@ class McpProcessTests(unittest.TestCase):
         history = self.call(5, "bashllm_history", {})["structuredContent"]["entries"]
         self.assertEqual(len(history), 1)
 
+    def test_compact_failure_saves_estimated_tokens(self) -> None:
+        self.initialize()
+        command = (
+            "for i in {1..256}; do "
+            "printf 'error %03d: dependency check failed\\n' \"$i\" >&2; "
+            "done; exit 1"
+        )
+        run = self.call(2, "bashllm_run", {
+            "repo": str(self.repo.resolve()), "command": command,
+        })
+        summary = run["structuredContent"]
+        if summary["status"] == "backend_unavailable":
+            self.skipTest("contained command execution is unavailable on this host")
+        self.assertEqual(summary["status"], "executed")
+        detail = self.call(3, "bashllm_result", {
+            "attempt_id": summary["attempt_id"], "max_bytes": 32768,
+        })["structuredContent"]
+        raw_stderr_bytes = len(detail["stderr"].encode("utf-8"))
+        self.assertGreater(raw_stderr_bytes, 8000)
+
+        # The previous MCP response copied full JSON into text and structured
+        # content. Counting stderr alone makes this a conservative baseline.
+        baseline_estimated_tokens = (2 * raw_stderr_bytes + 3) // 4
+        compact_bytes = (len(run["content"][0]["text"].encode("utf-8")) +
+                         len(json.dumps(summary, ensure_ascii=False).encode("utf-8")))
+        compact_estimated_tokens = (compact_bytes + 3) // 4
+        saved_estimated_tokens = baseline_estimated_tokens - compact_estimated_tokens
+        self.assertGreaterEqual(
+            saved_estimated_tokens, 3000,
+            f"saved {saved_estimated_tokens} estimated tokens "
+            f"({baseline_estimated_tokens} baseline, {compact_estimated_tokens} compact)",
+        )
+        print(f"estimated token saving: {saved_estimated_tokens} "
+              f"({baseline_estimated_tokens} baseline, {compact_estimated_tokens} compact)")
+
     def test_unknown_attempt_does_not_create_history(self) -> None:
         self.initialize()
         invalid = self.call(2, "bashllm_diagnose", {"attempt_id": 0})

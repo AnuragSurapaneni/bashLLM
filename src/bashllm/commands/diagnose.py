@@ -327,7 +327,13 @@ def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     payload["environment"] = {key: redact(value)[:120] for key, value in environment.items()
                               if key in {"PATH", "HOME", "TMPDIR", "XDG_CACHE_HOME", "LC_ALL"}}
     try:
-        result = _run_bounded(argv, cwd, 10, 8192, environment)
+        result = _run_bounded(argv, cwd, 20, 8192, environment)
+    except OSError as error:
+        payload["status"] = "probe_unverified"
+        payload["error"] = str(error)[:300]
+        payload["dependencies"] = [{"requirement": value[:120], "status": "unverified"}
+                                   for value in requirements]
+        return _emit(payload, args, 1)
     finally:
         cleanup()
     if selected is None and result["exit_code"] == 0:
