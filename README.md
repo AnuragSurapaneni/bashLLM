@@ -74,6 +74,18 @@ Failed runs include a bounded `diagnostic` with an error category, evidence, unc
 
 The [MCP token-savings test](tests/test_mcp.py) generates a large failure and requires at least **3,000 estimated tokens saved** by the compact response. On the macOS development host it measured **4,339 estimated tokens saved**: 4,480 for a conservative baseline that counts only duplicated raw stderr, versus 141 for the compact response. The estimate uses UTF-8 bytes divided by four, not a model tokenizer. See the [diagnostic benchmark](docs/agents/diagnostic-benchmark.md) for seven reproducible scenarios and the measurement method.
 
+Estimated savings by task in that benchmark (macOS, 2026-11-19):
+
+| Task | Baseline tokens | With diagnostics | Tokens saved | Tool calls saved |
+| --- | ---: | ---: | ---: | ---: |
+| Wrong interpreter | 1,576 | 966 | 610 | 1 |
+| Missing distribution | 1,571 | 1,013 | 558 | 1 |
+| Version conflict | 1,590 | 956 | 634 | 1 |
+| Syntax error | 414 | 221 | 193 | 0 |
+| Missing executable | 209 | 181 | 28 | 0 |
+| Timeout | 180 | 175 | 5 | 0 |
+| Truncated output | 16,725 | 354 | 16,371 | 0 |
+
 ## Agent integration
 
 The versioned, harness-neutral command description is available from:
